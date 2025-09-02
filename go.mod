@@ -5,7 +5,7 @@ go 1.24.3
 require (
 	github.com/XSAM/otelsql v0.39.0
 	github.com/go-redis/redismock/v9 v9.2.0
-	github.com/golang-jwt/jwt/v5 v5.2.3
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/lib/pq v1.10.9
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -65,7 +65,7 @@ require (
 	github.com/sendgrid/rest v2.6.9+incompatible // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
-	github.com/swaggo/swag v1.16.5
+	github.com/swaggo/swag v1.16.6
 	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
@@ -79,7 +79,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/prometheus/client_golang v1.23.0
-	github.com/redis/go-redis/v9 v9.11.0
+	github.com/redis/go-redis/v9 v9.12.1
 	github.com/sendgrid/sendgrid-go v3.16.1+incompatible
 	github.com/swaggo/http-swagger v1.3.4
 	go.opentelemetry.io/otel v1.37.0
