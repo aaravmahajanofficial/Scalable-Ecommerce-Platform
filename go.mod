@@ -12,7 +12,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/stripe/stripe-go/v81 v81.4.0
 	github.com/stripe/stripe-go/v83 v83.1.0
-	github.com/swaggo/http-swagger v1.3.4
+	github.com/swaggo/http-swagger/v2 v2.0.2
 	github.com/swaggo/http-swagger/v2 v2.0.2
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.38.0
