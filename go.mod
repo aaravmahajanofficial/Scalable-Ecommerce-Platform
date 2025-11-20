@@ -10,11 +10,11 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stretchr/testify v1.11.1
-	github.com/stripe/stripe-go/v83 v83.2.1
-	github.com/swaggo/http-swagger/v2 v2.0.2
+	github.com/stripe/stripe-go/v81 v81.4.0
+	github.com/swaggo/http-swagger v1.3.4
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.38.0
-	golang.org/x/crypto v0.44.0
+	golang.org/x/crypto v0.45.0
 )
 
 require (
@@ -68,7 +68,7 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
 	github.com/swaggo/swag v1.16.6
-	golang.org/x/net v0.46.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
