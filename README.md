@@ -1,8 +1,8 @@
-# Scalable E-commerce Platform 🛒
+# Scalable E-commerce Platform
 
 A modern, high-performance e-commerce backend platform built with Go, designed for scalability, reliability, and maintainability. This platform provides a comprehensive API for managing users, products, shopping carts, orders, payments, and notifications.
 
-## 🚀 Features
+## Features
 
 ### Core Functionality
 - **User Management**: Registration, authentication, and profile management
@@ -23,7 +23,7 @@ A modern, high-performance e-commerce backend platform built with Go, designed f
 - **Docker Support**: Containerized deployment ready
 - **Cross-Platform Builds**: Support for Linux, macOS, and Windows
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -36,7 +36,7 @@ A modern, high-performance e-commerce backend platform built with Go, designed f
 - [Contributing](#contributing)
 - [License](#license)
 
-## 📦 Prerequisites
+## Prerequisites
 
 - **Go**: Version 1.22 or higher
 - **PostgreSQL**: Version 12 or higher
@@ -44,7 +44,7 @@ A modern, high-performance e-commerce backend platform built with Go, designed f
 - **Docker** (optional): For containerized deployment
 - **Make**: For using the provided Makefile commands
 
-## 🛠 Installation
+## Installation
 
 ### 1. Clone the Repository
 
@@ -65,7 +65,7 @@ make deps
 make tools-install
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -179,7 +179,7 @@ cache:
   default_ttl: 5m
 ```
 
-## 🏃‍♂️ Running the Application
+## Running the Application
 
 ### Development Mode
 
@@ -221,7 +221,7 @@ make docs           # Generate API documentation
 make clean          # Clean build artifacts
 ```
 
-## 📚 API Documentation
+## API Documentation
 
 ### Swagger/OpenAPI Documentation
 
@@ -265,7 +265,7 @@ http://localhost:8085/swagger/index.html
 - `POST /api/v1/payments/process` - Process payment (authenticated)
 - `POST /api/v1/payments/webhook` - Stripe webhook endpoint
 
-## 🔧 Development
+## Development
 
 ### Project Structure
 
@@ -318,7 +318,7 @@ make vet
 
 Database schema is managed through the application. The database tables will be created automatically when the application starts if they don't exist.
 
-## 🧪 Testing
+## Testing
 
 ### Run Tests
 
@@ -344,7 +344,7 @@ The project maintains high test coverage across all modules:
 - Cache: 100%
 - Repositories: ~81.9%
 
-## 🐳 Deployment
+## Deployment
 
 ### Docker Deployment
 
@@ -385,7 +385,7 @@ make build-windows     # Windows
 make build-all         # All platforms
 ```
 
-## 🔒 Security
+## Security
 
 ### Security Features
 
@@ -405,7 +405,7 @@ make build-all         # All platforms
 5. Implement proper logging and monitoring
 6. Use environment variables for secrets
 
-## 📊 Monitoring and Observability
+## Monitoring and Observability
 
 ### Metrics
 
@@ -426,7 +426,7 @@ OpenTelemetry integration provides distributed tracing:
 
 Structured logging using Go's `slog` package with different log levels and contextual information.
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please follow these guidelines:
 
@@ -457,24 +457,20 @@ Please use the GitHub issue tracker to report bugs or request features. Include:
 - Expected vs actual behavior
 - Environment details
 
-## 📄 License
+## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](http://www.apache.org/licenses/LICENSE-2.0.html) file for details.
 
-## 👥 Contact
+## Contact
 
 - **Author**: Aarav Mahajan
 - **Email**: [aaravmahajan2003@gmail.com](mailto:aaravmahajan2003@gmail.com)
 - **GitHub**: [@aaravmahajanofficial](https://github.com/aaravmahajanofficial)
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Built with [Go](https://golang.org/)
 - Uses [Stripe](https://stripe.com/) for payment processing
 - Uses [SendGrid](https://sendgrid.com/) for email notifications
 - API documentation with [Swagger](https://swagger.io/)
 - Observability with [OpenTelemetry](https://opentelemetry.io/)
-
----
-
-**Happy Coding!** 🚀
