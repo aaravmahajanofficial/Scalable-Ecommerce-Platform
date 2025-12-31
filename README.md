@@ -460,17 +460,3 @@ Please use the GitHub issue tracker to report bugs or request features. Include:
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](http://www.apache.org/licenses/LICENSE-2.0.html) file for details.
-
-## Contact
-
-- **Author**: Aarav Mahajan
-- **Email**: [aaravmahajan2003@gmail.com](mailto:aaravmahajan2003@gmail.com)
-- **GitHub**: [@aaravmahajanofficial](https://github.com/aaravmahajanofficial)
-
-## Acknowledgments
-
-- Built with [Go](https://golang.org/)
-- Uses [Stripe](https://stripe.com/) for payment processing
-- Uses [SendGrid](https://sendgrid.com/) for email notifications
-- API documentation with [Swagger](https://swagger.io/)
-- Observability with [OpenTelemetry](https://opentelemetry.io/)
