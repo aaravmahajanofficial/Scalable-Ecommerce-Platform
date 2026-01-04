@@ -428,7 +428,7 @@ Structured logging using Go's `slog` package with different log levels and conte
 
 ## Contributing
 
-We welcome contributions! Please follow these guidelines:
+Please follow these guidelines:
 
 ### Development Workflow
 
