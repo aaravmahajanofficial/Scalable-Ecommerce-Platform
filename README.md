@@ -2,7 +2,7 @@
 
 A modern, high-performance e-commerce backend platform built with Go, designed for scalability, reliability, and maintainability. This platform provides a comprehensive API for managing users, products, shopping carts, orders, payments, and notifications.
 
-## Features
+# Features
 
 ### Core Functionality
 - **User Management**: Registration, authentication, and profile management
