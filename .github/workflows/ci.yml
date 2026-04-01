@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+          args: --timeout=5m
+
+  vet:
+    name: Vet
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify dependencies
+        run: go mod tidy && go mod verify
+
+      - name: Run go vet
+        run: go vet ./...
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests with race detection
+        run: go test -race -cover -coverprofile=coverage.out -parallel=8 ./...
+
+      - name: Generate coverage report
+        run: go tool cover -func=coverage.out
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+          retention-days: 7
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, vet, test]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go build \
+            -ldflags="-s -w \
+              -X main.Version=${{ github.sha }} \
+              -X main.BuildTime=$(date -u '+%Y-%m-%dT%H:%M:%SZ') \
+              -X main.CommitHash=${{ github.sha }}" \
+            -o ./bin/scalable-ecommerce-platform \
+            ./cmd/scalable-ecommerce-platform
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scalable-ecommerce-platform-linux-amd64
+          path: ./bin/scalable-ecommerce-platform
+          retention-days: 7
