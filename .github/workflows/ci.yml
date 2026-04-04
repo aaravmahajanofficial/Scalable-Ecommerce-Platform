@@ -24,7 +24,7 @@ jobs:
           cache: true
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           args: --timeout=5m
@@ -68,7 +68,7 @@ jobs:
         run: go tool cover -func=coverage.out
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage.out
@@ -101,7 +101,7 @@ jobs:
             ./cmd/scalable-ecommerce-platform
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: scalable-ecommerce-platform-linux-amd64
           path: ./bin/scalable-ecommerce-platform
