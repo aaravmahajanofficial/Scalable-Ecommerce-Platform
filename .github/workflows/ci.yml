@@ -68,7 +68,7 @@ jobs:
         run: go tool cover -func=coverage.out
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage.out
@@ -101,7 +101,7 @@ jobs:
             ./cmd/scalable-ecommerce-platform
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: scalable-ecommerce-platform-linux-amd64
           path: ./bin/scalable-ecommerce-platform
