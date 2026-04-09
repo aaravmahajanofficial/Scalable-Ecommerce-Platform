@@ -10,12 +10,12 @@ require (
 	github.com/lib/pq v1.12.3
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/stretchr/testify v1.11.1
-	github.com/stripe/stripe-go/v85 v85.0.0
+	github.com/stripe/stripe-go/v81 v81.4.0
 	github.com/stripe/stripe-go/v85 v85.0.0
 	github.com/swaggo/http-swagger v1.3.4
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0
-	golang.org/x/crypto v0.49.0
+	golang.org/x/crypto v0.50.0
 )
 
 require (
@@ -24,7 +24,7 @@ require (
 	github.com/gorilla/css v1.0.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/mod v0.33.0 // indirect
+	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 )
 
@@ -71,9 +71,9 @@ require (
 	github.com/swaggo/files v1.0.1 // indirect
 	github.com/swaggo/swag v1.16.6
 	golang.org/x/net v0.52.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
+	golang.org/x/sys v0.43.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/tools v0.43.0 // indirect
 )
 
 require (
