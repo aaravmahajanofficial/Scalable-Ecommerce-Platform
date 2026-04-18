@@ -36,7 +36,7 @@ func New(cfg *config.Config, redisClient *redis.Client, cacheImpl cache.Cache, r
 	}
 
 	// DB stats collector
-	if err := otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
+	if _, err := otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
 		semconv.DBSystemPostgreSQL,
 		semconv.DBNamespace(cfg.Database.Name),
 	)); err != nil {
