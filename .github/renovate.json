@@ -8,5 +8,8 @@
     "labels": [
         "dependencies"
     ],
+    "postUpdateOptions": [
+        "gomodTidy"
+    ],
     "commitMessagePrefix": "chore(deps):"
 }
