@@ -3,11 +3,6 @@ version: "2"
 run:
   timeout: 5m
   go: "1.24.2"
-  issues:
-    exclude-dirs:
-      - vendor
-      - node_modules
-  fast: true
 
 linters:
   enable:
@@ -20,53 +15,52 @@ linters:
     - gosec # Inspects source code for security problems
     - unused # Checks for unused constants, variables, functions and types
     - nilnil # Checks that there is no simultaneous return of nil error and an invalid value
+  exclusions:
+    paths:
+      - "vendor/.*"
+      - "node_modules/.*"
+      - ".*_generated\\.go"
+      - ".*_test\\.go"
+    rules:
+      # Don't check test files with certain linters
+      - path: "_test\\.go"
+        linters:
+          - gosec
+          - errcheck
+  settings:
+    exhaustruct:
+      exclude:
+        - ".*_test\\.go"
+        - "^testing\\.T$"
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    staticcheck:
+      checks: ["all", "-SA1019"]
+    gocyclo:
+      min-complexity: 20
+    revive:
+      rules:
+        - name: var-naming
+          severity: warning
+        - name: empty-block
+          severity: error
+        - name: unused-parameter
+          severity: warning
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - commentFormatting
 
 formatters:
   enable:
     - gofmt
     - goimports
 
-linters-settings:
-  exhaustruct:
-    exclude:
-      - ".*_test\\.go"
-      - "^testing\\.T$"
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  staticcheck:
-    checks: ["all", "-SA1019"]
-  gocyclo:
-    min-complexity: 20
-  revive:
-    rules:
-      - name: var-naming
-        severity: warning
-      - name: empty-block
-        severity: error
-      - name: unused-parameter
-        severity: warning
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-checks:
-      - commentFormatting
-
 issues:
-  exclude-patterns:
-    - ".*_generated\\.go"
-    - ".*_test\\.go"
-  exclude-rules:
-    - path: "vendor/.*"
-      linters:
-        - all
-    # Don't check test files with certain linters
-    - path: "_test\\.go"
-      linters:
-        - gosec
-        - errcheck
   # Limit the number of issues per linter
   max-issues-per-linter: 50
   max-same-issues: 10
@@ -76,6 +70,6 @@ output:
     text:
       path: stdout
       colors: true
-  sort-results: true
-  print-issued-lines: true
-  print-linter-name: true
+  sort-order:
+    - linter
+    - file
