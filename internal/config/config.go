@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -111,23 +112,23 @@ func MustLoad() *Config {
 		}
 	}
 
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		log.Fatalf("config file does not exist: %s", configPath)
-	} else if err != nil {
-		log.Fatalf("error accessing config file at %s: %v", configPath, err)
+	var err error
+	configPath, err = sanitizeConfigPath(configPath)
+	if err != nil {
+		log.Fatal("invalid config path")
 	}
 
 	var cfg Config
 
-	err := cleanenv.ReadConfig(configPath, &cfg)
+	err = cleanenv.ReadConfig(configPath, &cfg)
 	if err != nil {
-		log.Fatalf("cannot read config file: %s", err.Error())
+		log.Fatal("cannot read config file")
 	}
 
 	// Environment variables can override the defaults
 	err = cleanenv.ReadEnv(&cfg)
 	if err != nil {
-		log.Fatalf("cannot read environment variables: %s", err.Error())
+		log.Fatal("cannot read environment variables")
 	}
 
 	return &cfg
@@ -138,23 +139,35 @@ func LoadConfigFromPath(configPath string) (*Config, error) {
 		return nil, errors.New("config path is empty")
 	}
 
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("config file does not exist: %s", configPath)
-	}
-
 	var cfg Config
 
-	err := cleanenv.ReadConfig(configPath, &cfg)
+	safeConfigPath, err := sanitizeConfigPath(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read config file: %s", err.Error())
+		return nil, fmt.Errorf("invalid config path: %w", err)
+	}
+
+	err = cleanenv.ReadConfig(safeConfigPath, &cfg)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read config file: %w", err)
 	}
 
 	err = cleanenv.ReadEnv(&cfg)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read environment variables: %s", err.Error())
+		return nil, fmt.Errorf("cannot read environment variables: %w", err)
 	}
 
 	return &cfg, nil
+}
+
+func sanitizeConfigPath(configPath string) (string, error) {
+	cleanPath := filepath.Clean(configPath)
+
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return "", err
+	}
+
+	return absPath, nil
 }
 
 func (d *Database) GetDSN() string {

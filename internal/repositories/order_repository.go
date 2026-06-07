@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
@@ -111,7 +112,11 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to get the order items: %w", err)
 	}
 
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("failed to close order item rows", slog.Any("error", closeErr))
+		}
+	}()
 
 	var items []models.OrderItem
 
@@ -169,7 +174,11 @@ func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID u
 		return nil, 0, fmt.Errorf("failed to list orders: %w", err)
 	}
 
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("failed to close orders rows", slog.Any("error", closeErr))
+		}
+	}()
 
 	var orders []models.Order
 

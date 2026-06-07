@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
@@ -117,7 +118,11 @@ func (r *paymentRepository) ListPaymentsOfCustomer(ctx context.Context, customer
 		return nil, 0, fmt.Errorf("failed to list the payments: %w", err)
 	}
 
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("failed to close payment rows", slog.Any("error", closeErr))
+		}
+	}()
 
 	var payments []*models.Payment
 
