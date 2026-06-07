@@ -1,3 +1,5 @@
+version: "2"
+
 run:
   timeout: 5m
   go: "1.24.2"
@@ -14,12 +16,15 @@ linters:
     - errcheck # Ensures that errors are handled
     - gocyclo # Computes and checks the cyclomatic complexity of functions
     - revive # Fast, configurable, extensible, flexible linter for Go
-    - gofmt # Checks if code was gofmt-ed
-    - goimports # Checks import statements are formatted according to goimports
     - bodyclose # Checks whether HTTP response bodies are closed
     - gosec # Inspects source code for security problems
     - unused # Checks for unused constants, variables, functions and types
     - nilnil # Checks that there is no simultaneous return of nil error and an invalid value
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 linters-settings:
   exhaustruct:
