@@ -67,7 +67,10 @@ issues:
   max-same-issues: 10
 
 output:
-  formats: colored-line-number
+  formats:
+    text:
+      path: stdout
+      colors: true
   sort-results: true
   print-issued-lines: true
   print-linter-name: true
