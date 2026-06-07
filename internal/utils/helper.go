@@ -26,7 +26,11 @@ func DecodeJSONBody(r *http.Request, dest any) error {
 		return errors.BadRequestError("Failed to read request body").WithError(err)
 	}
 
-	defer r.Body.Close()
+	defer func() {
+		if closeErr := r.Body.Close(); closeErr != nil {
+			logger.Warn("failed to close request body", slog.Any("error", closeErr))
+		}
+	}()
 
 	if len(body) == 0 {
 		logger.Warn("Empty request body received")

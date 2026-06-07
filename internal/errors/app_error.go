@@ -1,3 +1,4 @@
+// Package errors provides structured application-level error types and helpers.
 package errors
 
 import (
@@ -110,7 +111,7 @@ func IsAppError(err error) (*AppError, bool) {
 	return nil, false
 }
 
-// field validation error.
+// AddValidationError creates a validation error for a specific field and reason.
 func AddValidationError(field, reason string) *AppError {
 	return ValidationError(fmt.Sprintf("Invalid field '%s': %s", field, reason))
 }
