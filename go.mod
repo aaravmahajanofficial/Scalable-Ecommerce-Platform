@@ -78,7 +78,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/go-playground/validator/v10 v10.30.2
+	github.com/go-playground/validator/v10 v10.30.3
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/prometheus/client_golang v1.23.2
