@@ -3,7 +3,7 @@ module github.com/aaravmahajanofficial/scalable-ecommerce-platform
 go 1.25.0
 
 require (
-	github.com/XSAM/otelsql v0.42.0
+	github.com/XSAM/otelsql v0.43.0
 	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/ilyakaznacheev/cleanenv v1.5.0
@@ -14,7 +14,7 @@ require (
 	github.com/swaggo/http-swagger v1.3.4
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0
-	golang.org/x/crypto v0.52.0
+	golang.org/x/crypto v0.54.0
 )
 
 require (
@@ -22,9 +22,8 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/mod v0.35.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/mod v0.37.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 )
 
 require (
@@ -36,8 +35,8 @@ require (
 	github.com/hellofresh/health-go/v5 v5.5.5
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.66.1 // indirect
-	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/prometheus/common v0.70.0 // indirect
+	github.com/prometheus/procfs v0.21.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // indirect
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
@@ -68,10 +67,10 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
 	github.com/swaggo/swag v1.16.6
-	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
-	golang.org/x/tools v0.44.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/tools v0.47.0 // indirect
 )
 
 require (
@@ -80,8 +79,8 @@ require (
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1 // indirect
-	github.com/prometheus/client_golang v1.23.2
-	github.com/redis/go-redis/v9 v9.20.0
+	github.com/prometheus/client_golang v1.24.0
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/sendgrid/sendgrid-go v3.16.1+incompatible
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/sdk v1.44.0
