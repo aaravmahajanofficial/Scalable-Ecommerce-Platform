@@ -1,3 +1,4 @@
+// Package models defines domain models and request/response payloads.
 package models
 
 import (
@@ -17,20 +18,20 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// for registration.
+// RegisterRequest contains the payload for user registration.
 type RegisterRequest struct {
 	Email    string `json:"email"    validate:"required,email"`
 	Password string `json:"password" validate:"required,min=6"`
 	Name     string `json:"name"     validate:"required"`
 }
 
-// for login.
+// LoginRequest contains the payload for user login.
 type LoginRequest struct {
 	Email    string `json:"email"    validate:"required,email"`
 	Password string `json:"password" validate:"required"`
 }
 
-// for login response.
+// LoginResponse contains the payload for user login responses.
 type LoginResponse struct {
 	Success        bool   `json:"success"`
 	Token          string `json:"token,omitempty"`
