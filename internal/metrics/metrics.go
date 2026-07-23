@@ -92,7 +92,7 @@ func Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// http.Handler for the Prometheus /metrics endpoint.
+// Handler returns an http.Handler for the Prometheus /metrics endpoint.
 func Handler() http.Handler {
 	return promhttp.Handler()
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
@@ -121,7 +122,11 @@ func (r *notificationRepository) ListNotifications(ctx context.Context, page int
 		return nil, 0, fmt.Errorf("failed to query notifications: %w", err)
 	}
 
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("failed to close notification rows", slog.Any("error", closeErr))
+		}
+	}()
 
 	notifications := []*models.Notification{}
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
@@ -107,7 +108,11 @@ func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([
 		return nil, 0, err
 	}
 
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("failed to close product rows", slog.Any("error", closeErr))
+		}
+	}()
 
 	var products []*models.Product
 
