@@ -14,7 +14,7 @@ import (
 
 type Event = stripe.Event
 
-// defines the methods that any of payment client must implement.
+// Client defines the methods that any of payment client must implement.
 type Client interface {
 	CreatePaymentIntent(amount int64, currency string, description string, customerID string) (*stripe.PaymentIntent, error)
 	CreatePaymentMethod(cardNumber, cardExpMonth, cardExpYear, cardCVC string) (*stripe.PaymentMethod, error)
