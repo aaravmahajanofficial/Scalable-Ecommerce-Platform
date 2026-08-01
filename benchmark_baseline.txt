@@ -1,0 +1,7 @@
+goos: linux
+goarch: amd64
+pkg: github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories
+cpu: Intel(R) Xeon(R) Processor @ 2.30GHz
+BenchmarkListOrdersByCustomer-4   	     174	  10553038 ns/op
+PASS
+ok  	github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories	2.724s
