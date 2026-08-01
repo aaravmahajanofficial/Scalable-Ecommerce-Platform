@@ -62,9 +62,6 @@ func TestCreateOrder_Success(t *testing.T) {
 	}).Once()
 
 	// Mock Call Product Repository
-	// Need to mock GetProductByID again for the updating quantity
-	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Once()
-	mockProductRepo.On("GetProductByID", ctx, productID2).Return(mockProduct2, nil).Once()
 	mockProductRepo.On("UpdateProduct", ctx, mock.MatchedBy(func(p *models.Product) bool { return p.ID == productID1 && p.StockQuantity == 8 })).Return(nil).Once() // 10 - 2 = 8
 	mockProductRepo.On("UpdateProduct", ctx, mock.MatchedBy(func(p *models.Product) bool { return p.ID == productID2 && p.StockQuantity == 4 })).Return(nil).Once() // 5 - 1 = 4
 
@@ -170,7 +167,7 @@ func TestCreateOrder_ProductNotFound(t *testing.T) {
 
 	// Mock Call Product Repository
 	mockProduct1 := &models.Product{ID: productID1, StockQuantity: 10}
-	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Once()
+	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Maybe()
 
 	mockErr := errors.New("mock product repo error")
 	mockProductRepo.On("GetProductByID", ctx, productID2).Return(nil, mockErr).Once()
@@ -298,7 +295,7 @@ func TestCreateOrder_UpdateInventoryRepoError(t *testing.T) {
 
 	// Mock Call Product Repo
 	mockProduct1 := &models.Product{ID: productID1, StockQuantity: 10, Price: 25.0}
-	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Twice() // Called once for check, once for update loop
+	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Once()
 
 	// Mock Call Order Repo
 	mockOrderRepo.On("CreateOrder", ctx, mock.AnythingOfType("*models.Order")).Return(nil).Once()
