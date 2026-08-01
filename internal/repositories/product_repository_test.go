@@ -32,6 +32,36 @@ func TestProductRepository(t *testing.T) {
 	repo := repository.NewProductRepo(db)
 	ctx := t.Context()
 
+
+	t.Run("GetProductsByIDs", func(t *testing.T) {
+		t.Run("Success", func(t *testing.T) {
+			id1 := uuid.New()
+			id2 := uuid.New()
+			now := time.Now()
+
+			rows := sqlmock.NewRows([]string{"id", "category_id", "name", "description", "price", "stock_quantity", "sku", "status", "created_at", "updated_at", "category_id", "category_name", "category_description"}).
+				AddRow(id1, uuid.New(), "P1", "D1", 10.0, 10, "SKU1", "active", now, now, uuid.New(), "C1", "CD1").
+				AddRow(id2, uuid.New(), "P2", "D2", 20.0, 20, "SKU2", "active", now, now, uuid.New(), "C2", "CD2")
+
+			expectedSQL := regexp.QuoteMeta(`SELECT p.id, p.category_id, p.name, p.description, p.price, p.stock_quantity, p.sku, p.status, p.created_at, p.updated_at, c.id, c.name, c.description FROM products p LEFT JOIN categories c ON p.category_id = c.id WHERE p.id = ANY($1)`)
+			mock.ExpectQuery(expectedSQL).WithArgs(sqlmock.AnyArg()).WillReturnRows(rows)
+
+			products, err := repo.GetProductsByIDs(ctx, []uuid.UUID{id1, id2})
+			assert.NoError(t, err)
+			assert.Len(t, products, 2)
+			assert.Equal(t, id1, products[0].ID)
+			assert.Equal(t, id2, products[1].ID)
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run("EmptyList", func(t *testing.T) {
+			products, err := repo.GetProductsByIDs(ctx, []uuid.UUID{})
+			assert.NoError(t, err)
+			assert.Empty(t, products)
+		})
+	})
+
 	t.Run("CreateProduct", func(t *testing.T) {
 		t.Run("Success", func(t *testing.T) {
 			// Arrange

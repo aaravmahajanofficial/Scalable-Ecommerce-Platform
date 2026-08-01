@@ -8,11 +8,13 @@ import (
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type ProductRepository interface {
 	CreateProduct(ctx context.Context, product *models.Product) error
 	GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error)
+	GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Product, error)
 	UpdateProduct(ctx context.Context, product *models.Product) error
 	ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error)
 }
@@ -35,6 +37,48 @@ func (r *productRepository) CreateProduct(ctx context.Context, product *models.P
 	`
 
 	return r.DB.QueryRowContext(dbCtx, query, product.CategoryID, product.Name, product.Description, product.Price, product.StockQuantity, product.SKU, product.Status).Scan(&product.ID, &product.CreatedAt, &product.UpdatedAt)
+}
+
+func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Product, error) {
+	if len(ids) == 0 {
+		return []*models.Product{}, nil
+	}
+
+	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	defer cancel()
+
+	query := `
+        SELECT p.id, p.category_id, p.name, p.description, p.price,
+               p.stock_quantity, p.sku, p.status, p.created_at, p.updated_at,
+               c.id, c.name, c.description
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.id = ANY($1)`
+
+	rows, err := r.DB.QueryContext(dbCtx, query, pq.Array(ids))
+	if err != nil {
+		return nil, fmt.Errorf("querying database: %w", err)
+	}
+	defer rows.Close()
+
+	var products []*models.Product
+
+	for rows.Next() {
+		product := &models.Product{}
+		category := &models.Category{}
+		err := rows.Scan(&product.ID, &product.CategoryID, &product.Name, &product.Description, &product.Price, &product.StockQuantity, &product.SKU, &product.Status, &product.CreatedAt, &product.UpdatedAt, &category.ID, &category.Name, &category.Description)
+		if err != nil {
+			return nil, fmt.Errorf("scanning product row: %w", err)
+		}
+		product.Category = category
+		products = append(products, product)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating product rows: %w", err)
+	}
+
+	return products, nil
 }
 
 func (r *productRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
