@@ -1,0 +1,5 @@
+🧪 Add missing tests for `internal/utils/helper.go`
+
+🎯 **What:** Implemented `internal/utils/helper_test.go` to cover the HTTP helper, JSON decoding, struct validation, and parameter parsing logic.
+📊 **Coverage:** The new test file introduces coverage for all the functions in `helper.go`: `DecodeJSONBody`, `ValidateStruct`, `ParseAndValidate`, `formatValidationError`, `ParseInt`, and `ParseID`. Included tests for successful data processing, invalid JSON structure errors, format validation checks, and string interpolation error pathways.
+✨ **Result:** Enhanced the unit test coverage of the HTTP utilities layer ensuring reliable API request data interpretation and preventing edge-case bugs for standard parsing components.
