@@ -85,6 +85,64 @@ func (_c *MockProductRepository_CreateProduct_Call) RunAndReturn(run func(ctx co
 	return _c
 }
 
+
+// GetProductsByIDs provides a mock function for the type MockProductRepository
+func (_mock *MockProductRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Product, error) {
+	ret := _mock.Called(ctx, ids)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetProductsByIDs")
+	}
+
+	var r0 []*models.Product
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) ([]*models.Product, error)); ok {
+		return returnFunc(ctx, ids)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []uuid.UUID) []*models.Product); ok {
+		r0 = returnFunc(ctx, ids)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*models.Product)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []uuid.UUID) error); ok {
+		r1 = returnFunc(ctx, ids)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockProductRepository_GetProductsByIDs_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetProductsByIDs'
+type MockProductRepository_GetProductsByIDs_Call struct {
+	*mock.Call
+}
+
+// GetProductsByIDs is a helper method to define mock.On call
+//   - ctx
+//   - ids
+func (_e *MockProductRepository_Expecter) GetProductsByIDs(ctx interface{}, ids interface{}) *MockProductRepository_GetProductsByIDs_Call {
+	return &MockProductRepository_GetProductsByIDs_Call{Call: _e.mock.On("GetProductsByIDs", ctx, ids)}
+}
+
+func (_c *MockProductRepository_GetProductsByIDs_Call) Run(run func(ctx context.Context, ids []uuid.UUID)) *MockProductRepository_GetProductsByIDs_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]uuid.UUID))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_GetProductsByIDs_Call) Return(_a0 []*models.Product, _a1 error) *MockProductRepository_GetProductsByIDs_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockProductRepository_GetProductsByIDs_Call) RunAndReturn(run func(context.Context, []uuid.UUID) ([]*models.Product, error)) *MockProductRepository_GetProductsByIDs_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetProductByID provides a mock function for the type MockProductRepository
 func (_mock *MockProductRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
 	ret := _mock.Called(ctx, id)
