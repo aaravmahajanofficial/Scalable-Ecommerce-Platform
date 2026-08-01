@@ -169,11 +169,9 @@ func TestCreateOrder_ProductNotFound(t *testing.T) {
 	mockCartRepo.On("GetCartByCustomerID", ctx, customerID).Return(mockCart, nil)
 
 	// Mock Call Product Repository
-	mockProduct1 := &models.Product{ID: productID1, StockQuantity: 10}
-	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Once()
-
 	mockErr := errors.New("mock product repo error")
-	mockProductRepo.On("GetProductByID", ctx, productID2).Return(nil, mockErr).Once()
+	mockProductRepo.On("GetProductByID", ctx, productID1).Return(&models.Product{ID: productID1, StockQuantity: 10}, nil)
+	mockProductRepo.On("GetProductByID", ctx, productID2).Return(nil, mockErr)
 
 	req := &models.CreateOrderRequest{CustomerID: customerID}
 
@@ -251,7 +249,6 @@ func TestCreateOrder_CreateOrderRepoError(t *testing.T) {
 	// Mock Call Product Repo
 	mockProduct1 := &models.Product{ID: productID1, StockQuantity: 10, Price: 25.0}
 	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Once()
-
 	// Mock Call Order Repo
 	mockErr := errors.New("mock create order error")
 	mockOrderRepo.On("CreateOrder", ctx, mock.AnythingOfType("*models.Order")).Return(mockErr).Once()
