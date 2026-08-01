@@ -120,36 +120,30 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, payload []byte, sig
 		return stripe.Event{}, errors.ThirdPartyError("Webhook signature verification failed").WithError(err)
 	}
 
+	var status models.PaymentStatus
+	var idKey string
+
 	switch event.Type {
 	case "payment_intent.succeeded":
-		stripeID, err := extractStripeID(event.Data.Object, "id")
-		if err != nil {
-			return event, err
-		}
-
-		if err := s.repo.UpdatePaymentStatus(ctx, stripeID, models.PaymentStatusSucceeded); err != nil {
-			return event, errors.DatabaseError("Failed to update payment status").WithError(err)
-		}
-
+		status = models.PaymentStatusSucceeded
+		idKey = "id"
 	case "payment_intent.payment_failed":
-		stripeID, err := extractStripeID(event.Data.Object, "id")
-		if err != nil {
-			return event, err
-		}
-
-		if err := s.repo.UpdatePaymentStatus(ctx, stripeID, models.PaymentStatusFailed); err != nil {
-			return event, errors.DatabaseError("Failed to update payment status").WithError(err)
-		}
-
+		status = models.PaymentStatusFailed
+		idKey = "id"
 	case "charge.refunded":
-		paymentIntentID, err := extractStripeID(event.Data.Object, "payment_intent")
-		if err != nil {
-			return event, err
-		}
+		status = models.PaymentStatusRefunded
+		idKey = "payment_intent"
+	default:
+		return event, nil
+	}
 
-		if err := s.repo.UpdatePaymentStatus(ctx, paymentIntentID, models.PaymentStatusRefunded); err != nil {
-			return event, errors.DatabaseError("Failed to update payment status").WithError(err)
-		}
+	stripeID, err := extractStripeID(event.Data.Object, idKey)
+	if err != nil {
+		return event, err
+	}
+
+	if err := s.repo.UpdatePaymentStatus(ctx, stripeID, status); err != nil {
+		return event, errors.DatabaseError("Failed to update payment status").WithError(err)
 	}
 
 	return event, nil
