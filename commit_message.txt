@@ -1,0 +1,16 @@
+🧹 Refactor ProcessWebhook to reduce code complexity
+
+🎯 What:
+- Extracted a helper function `extractStripeID` in `internal/services/payment.go`.
+- Updated `ProcessWebhook` to use this helper for the `payment_intent.succeeded`, `payment_intent.payment_failed`, and `charge.refunded` event types.
+- Updated error messages in tests (`internal/services/payment_test.go`) to match the new unified generic error format.
+
+💡 Why:
+The previous implementation duplicated the logic for extracting and validating string IDs from Stripe events across multiple switch cases. This improves readability, reduces code duplication, and ensures consistent error types and messaging.
+
+✅ Verification:
+- Ran the test suite `go test ./...` successfully.
+- Asserted specific error types in updated unit tests correctly match standard `InternalError` or `ThirdPartyError`.
+
+✨ Result:
+Cleaned up `ProcessWebhook`, standardizing error handling for missing/malformed IDs across all Stripe webhook events without changing behavior.

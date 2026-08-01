@@ -95,6 +95,24 @@ func (s *paymentService) ListPaymentsByCustomer(ctx context.Context, customerID 
 	return payments, total, nil
 }
 
+func extractStripeID(obj map[string]interface{}, key string) (string, error) {
+	valInterface, ok := obj[key]
+	if !ok {
+		return "", errors.InternalError("ID not found in Stripe response")
+	}
+
+	val, ok := valInterface.(string)
+	if !ok {
+		return "", errors.InternalError("ID is not a string in Stripe response")
+	}
+
+	if val == "" {
+		return "", errors.ThirdPartyError("Missing ID in webhook")
+	}
+
+	return val, nil
+}
+
 // ProcessWebhook implements PaymentService.
 func (s *paymentService) ProcessWebhook(ctx context.Context, payload []byte, signature string) (stripe.Event, error) {
 	event, err := s.stripeClient.VerifyWebhookSignature(payload, signature)
@@ -104,20 +122,9 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, payload []byte, sig
 
 	switch event.Type {
 	case "payment_intent.succeeded":
-		paymentIntent := event.Data.Object
-
-		stripeIDInterface, ok := paymentIntent["id"]
-		if !ok {
-
-			return event, errors.InternalError("Payment intent ID not found in Stripe response")
-		}
-		stripeID, ok := stripeIDInterface.(string)
-		if !ok {
-			return event, errors.InternalError("Payment intent ID is not a string in Stripe response")
-		}
-
-		if stripeID == "" {
-			return event, errors.ThirdPartyError("Missing payment intent ID in webhook")
+		stripeID, err := extractStripeID(event.Data.Object, "id")
+		if err != nil {
+			return event, err
 		}
 
 		if err := s.repo.UpdatePaymentStatus(ctx, stripeID, models.PaymentStatusSucceeded); err != nil {
@@ -125,20 +132,9 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, payload []byte, sig
 		}
 
 	case "payment_intent.payment_failed":
-		paymentIntent := event.Data.Object
-
-		stripeIDInterface, ok := paymentIntent["id"]
-		if !ok {
-			return event, errors.InternalError("Payment intent ID not found in Stripe response")
-		}
-
-		stripeID, ok := stripeIDInterface.(string)
-		if !ok {
-			return event, errors.InternalError("Payment intent ID is not a string in Stripe response")
-		}
-
-		if stripeID == "" {
-			return event, errors.ThirdPartyError("Missing payment intent ID in webhook")
+		stripeID, err := extractStripeID(event.Data.Object, "id")
+		if err != nil {
+			return event, err
 		}
 
 		if err := s.repo.UpdatePaymentStatus(ctx, stripeID, models.PaymentStatusFailed); err != nil {
@@ -146,11 +142,9 @@ func (s *paymentService) ProcessWebhook(ctx context.Context, payload []byte, sig
 		}
 
 	case "charge.refunded":
-		chargeObject := event.Data.Object
-		paymentIntentID, piOK := chargeObject["payment_intent"].(string)
-
-		if !piOK || paymentIntentID == "" {
-			return event, errors.ThirdPartyError("Missing payment intent ID in webhook")
+		paymentIntentID, err := extractStripeID(event.Data.Object, "payment_intent")
+		if err != nil {
+			return event, err
 		}
 
 		if err := s.repo.UpdatePaymentStatus(ctx, paymentIntentID, models.PaymentStatusRefunded); err != nil {
