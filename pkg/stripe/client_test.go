@@ -40,25 +40,35 @@ func (m *mockBackend) CallMultipart(method, path, key, boundary string, body *by
 
 func (m *mockBackend) SetMaxNetworkRetries(maxNetworkRetries int64) {}
 
-func TestCreatePaymentIntent(t *testing.T) {
+func setupMockBackend(t *testing.T, expectedMethod, expectedPath string, setterFunc func(v stripe.LastResponseSetter)) Client {
 	mb := &mockBackend{
 		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
-			assert.Equal(t, "POST", method)
-			assert.Equal(t, "/v1/payment_intents", path)
+			assert.Equal(t, expectedMethod, method)
+			assert.Equal(t, expectedPath, path)
 
-			pi := v.(*stripe.PaymentIntent)
-			pi.ID = "pi_123"
-			pi.Amount = 1000
-			pi.Currency = "usd"
+			if setterFunc != nil {
+				setterFunc(v)
+			}
 			return nil
 		},
 	}
-	// Save the original backend to restore it later
 	originalBackend := stripe.GetBackend(stripe.APIBackend)
 	stripe.SetBackend(stripe.APIBackend, mb)
-	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
+	t.Cleanup(func() {
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+	})
 
-	client := NewStripeClient("sk_test_123", "whsec_123")
+	return NewStripeClient("sk_test_123", "whsec_123")
+}
+
+func TestCreatePaymentIntent(t *testing.T) {
+	client := setupMockBackend(t, "POST", "/v1/payment_intents", func(v stripe.LastResponseSetter) {
+		pi := v.(*stripe.PaymentIntent)
+		pi.ID = "pi_123"
+		pi.Amount = 1000
+		pi.Currency = "usd"
+	})
+
 	pi, err := client.CreatePaymentIntent(1000, "usd", "test desc", "cus_123")
 	require.NoError(t, err)
 	assert.Equal(t, "pi_123", pi.ID)
@@ -66,21 +76,10 @@ func TestCreatePaymentIntent(t *testing.T) {
 }
 
 func TestCreatePaymentMethod(t *testing.T) {
-	mb := &mockBackend{
-		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
-			assert.Equal(t, "POST", method)
-			assert.Equal(t, "/v1/payment_methods", path)
-
-			pm := v.(*stripe.PaymentMethod)
-			pm.ID = "pm_123"
-			return nil
-		},
-	}
-	originalBackend := stripe.GetBackend(stripe.APIBackend)
-	stripe.SetBackend(stripe.APIBackend, mb)
-	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
-
-	client := NewStripeClient("sk_test_123", "whsec_123")
+	client := setupMockBackend(t, "POST", "/v1/payment_methods", func(v stripe.LastResponseSetter) {
+		pm := v.(*stripe.PaymentMethod)
+		pm.ID = "pm_123"
+	})
 
 	pm, err := client.CreatePaymentMethod("4242", "12", "2030", "123")
 	require.NoError(t, err)
@@ -96,21 +95,10 @@ func TestCreatePaymentMethod(t *testing.T) {
 }
 
 func TestCreatePaymentMethodFromToken(t *testing.T) {
-	mb := &mockBackend{
-		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
-			assert.Equal(t, "GET", method)
-			assert.Equal(t, "/v1/payment_methods/pm_123", path)
-
-			pm := v.(*stripe.PaymentMethod)
-			pm.ID = "pm_123"
-			return nil
-		},
-	}
-	originalBackend := stripe.GetBackend(stripe.APIBackend)
-	stripe.SetBackend(stripe.APIBackend, mb)
-	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
-
-	client := NewStripeClient("sk_test_123", "whsec_123")
+	client := setupMockBackend(t, "GET", "/v1/payment_methods/pm_123", func(v stripe.LastResponseSetter) {
+		pm := v.(*stripe.PaymentMethod)
+		pm.ID = "pm_123"
+	})
 
 	pm, err := client.CreatePaymentMethodFromToken("pm_123")
 	require.NoError(t, err)
@@ -118,42 +106,20 @@ func TestCreatePaymentMethodFromToken(t *testing.T) {
 }
 
 func TestAttachPaymentMethodToIntent(t *testing.T) {
-	mb := &mockBackend{
-		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
-			assert.Equal(t, "POST", method)
-			assert.Equal(t, "/v1/payment_intents/pi_123", path)
-
-			pi := v.(*stripe.PaymentIntent)
-			pi.ID = "pi_123"
-			return nil
-		},
-	}
-	originalBackend := stripe.GetBackend(stripe.APIBackend)
-	stripe.SetBackend(stripe.APIBackend, mb)
-	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
-
-	client := NewStripeClient("sk_test_123", "whsec_123")
+	client := setupMockBackend(t, "POST", "/v1/payment_intents/pi_123", func(v stripe.LastResponseSetter) {
+		pi := v.(*stripe.PaymentIntent)
+		pi.ID = "pi_123"
+	})
 
 	err := client.AttachPaymentMethodToIntent("pm_123", "pi_123")
 	require.NoError(t, err)
 }
 
 func TestConfirmPaymentIntent(t *testing.T) {
-	mb := &mockBackend{
-		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
-			assert.Equal(t, "POST", method)
-			assert.Equal(t, "/v1/payment_intents/pi_123/confirm", path)
-
-			pi := v.(*stripe.PaymentIntent)
-			pi.ID = "pi_123"
-			return nil
-		},
-	}
-	originalBackend := stripe.GetBackend(stripe.APIBackend)
-	stripe.SetBackend(stripe.APIBackend, mb)
-	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
-
-	client := NewStripeClient("sk_test_123", "whsec_123")
+	client := setupMockBackend(t, "POST", "/v1/payment_intents/pi_123/confirm", func(v stripe.LastResponseSetter) {
+		pi := v.(*stripe.PaymentIntent)
+		pi.ID = "pi_123"
+	})
 
 	pi, err := client.ConfirmPaymentIntent("pi_123")
 	require.NoError(t, err)
@@ -161,21 +127,10 @@ func TestConfirmPaymentIntent(t *testing.T) {
 }
 
 func TestRefundPayment(t *testing.T) {
-	mb := &mockBackend{
-		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
-			assert.Equal(t, "POST", method)
-			assert.Equal(t, "/v1/refunds", path)
-
-			r := v.(*stripe.Refund)
-			r.ID = "re_123"
-			return nil
-		},
-	}
-	originalBackend := stripe.GetBackend(stripe.APIBackend)
-	stripe.SetBackend(stripe.APIBackend, mb)
-	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
-
-	client := NewStripeClient("sk_test_123", "whsec_123")
+	client := setupMockBackend(t, "POST", "/v1/refunds", func(v stripe.LastResponseSetter) {
+		r := v.(*stripe.Refund)
+		r.ID = "re_123"
+	})
 
 	r, err := client.RefundPayment("pi_123", 1000)
 	require.NoError(t, err)
