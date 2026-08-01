@@ -39,6 +39,7 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 	}
 
 	// now check the availability of the product
+	fetchedProducts := make(map[uuid.UUID]*models.Product, len(cart.Items))
 	for _, item := range cart.Items {
 		product, err := s.productRepo.GetProductByID(ctx, item.ProductID)
 		if err != nil {
@@ -48,6 +49,8 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 		if product.StockQuantity < item.Quantity {
 			return nil, errors.BadRequestError("Insufficient stock for product: " + item.ProductID.String())
 		}
+
+		fetchedProducts[item.ProductID] = product
 	}
 
 	// calculate the order total
@@ -94,9 +97,9 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 	}
 
 	for _, item := range cart.Items {
-		product, err := s.productRepo.GetProductByID(ctx, item.ProductID)
-		if err != nil {
-			return nil, errors.DatabaseError("Failed to get product").WithError(err)
+		product, ok := fetchedProducts[item.ProductID]
+		if !ok {
+			return nil, errors.DatabaseError("Failed to get product from fetched products")
 		}
 		product.StockQuantity -= item.Quantity
 
