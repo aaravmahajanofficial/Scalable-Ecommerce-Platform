@@ -1,0 +1,16 @@
+--- internal/services/order_test.go
++++ internal/services/order_test.go
+@@ -171,8 +171,11 @@
+
+	// Mock Call Product Repository
+	mockProduct1 := &models.Product{ID: productID1, StockQuantity: 10}
+-	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Once()
++	// We don't specify the order because maps iteration is random.
++	// Just saying it might be called.
++	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Maybe()
+
+	mockErr := errors.New("mock product repo error")
+-	mockProductRepo.On("GetProductByID", ctx, productID2).Return(nil, mockErr).Once()
++	mockProductRepo.On("GetProductByID", ctx, productID2).Return(nil, mockErr).Maybe()
+
+	req := &models.CreateOrderRequest{CustomerID: customerID}
