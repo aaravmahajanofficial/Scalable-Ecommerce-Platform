@@ -39,23 +39,12 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 	}
 
 	// now check the availability of the product
-	for _, item := range cart.Items {
-		product, err := s.productRepo.GetProductByID(ctx, item.ProductID)
-		if err != nil {
-			return nil, errors.NotFoundError("Product not found: " + item.ProductID.String()).WithError(err)
-		}
-
-		if product.StockQuantity < item.Quantity {
-			return nil, errors.BadRequestError("Insufficient stock for product: " + item.ProductID.String())
-		}
+	if err := s.checkProductAvailability(ctx, cart.Items); err != nil {
+		return nil, err
 	}
 
 	// calculate the order total
-	var grossTotal float64
-
-	for _, item := range req.Items {
-		grossTotal += float64(item.Quantity) * item.UnitPrice
-	}
+	grossTotal := s.calculateGrossTotal(req.Items)
 
 	// assemble the order struct
 	order := &models.Order{
@@ -70,40 +59,15 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 	}
 
 	// now add the items
-
-	var items []models.OrderItem
-
-	for _, item := range req.Items {
-		orderItem := models.OrderItem{
-			ID:        uuid.New(),
-			OrderID:   order.ID,
-			ProductID: item.ProductID,
-			Quantity:  item.Quantity,
-			UnitPrice: item.UnitPrice,
-			CreatedAt: time.Now(),
-		}
-
-		items = append(items, orderItem)
-	}
-
-	order.Items = items
+	order.Items = s.buildOrderItems(order.ID, req.Items)
 
 	err = s.orderRepo.CreateOrder(ctx, order)
 	if err != nil {
 		return nil, errors.DatabaseError("Failed to create order").WithError(err)
 	}
 
-	for _, item := range cart.Items {
-		product, err := s.productRepo.GetProductByID(ctx, item.ProductID)
-		if err != nil {
-			return nil, errors.DatabaseError("Failed to get product").WithError(err)
-		}
-		product.StockQuantity -= item.Quantity
-
-		err = s.productRepo.UpdateProduct(ctx, product)
-		if err != nil {
-			return nil, errors.DatabaseError("Failed to update inventory").WithError(err)
-		}
+	if err := s.updateInventory(ctx, cart.Items); err != nil {
+		return nil, err
 	}
 
 	return order, nil
@@ -148,4 +112,58 @@ func (s *orderService) UpdateOrderStatus(ctx context.Context, id uuid.UUID, stat
 	}
 
 	return order, nil
+}
+
+func (s *orderService) checkProductAvailability(ctx context.Context, items map[string]models.CartItem) error {
+	for _, item := range items {
+		product, err := s.productRepo.GetProductByID(ctx, item.ProductID)
+		if err != nil {
+			return errors.NotFoundError("Product not found: " + item.ProductID.String()).WithError(err)
+		}
+
+		if product.StockQuantity < item.Quantity {
+			return errors.BadRequestError("Insufficient stock for product: " + item.ProductID.String())
+		}
+	}
+	return nil
+}
+
+func (s *orderService) calculateGrossTotal(items []models.OrderItem) float64 {
+	var grossTotal float64
+	for _, item := range items {
+		grossTotal += float64(item.Quantity) * item.UnitPrice
+	}
+	return grossTotal
+}
+
+func (s *orderService) buildOrderItems(orderID uuid.UUID, items []models.OrderItem) []models.OrderItem {
+	var orderItems []models.OrderItem
+	for _, item := range items {
+		orderItem := models.OrderItem{
+			ID:        uuid.New(),
+			OrderID:   orderID,
+			ProductID: item.ProductID,
+			Quantity:  item.Quantity,
+			UnitPrice: item.UnitPrice,
+			CreatedAt: time.Now(),
+		}
+		orderItems = append(orderItems, orderItem)
+	}
+	return orderItems
+}
+
+func (s *orderService) updateInventory(ctx context.Context, items map[string]models.CartItem) error {
+	for _, item := range items {
+		product, err := s.productRepo.GetProductByID(ctx, item.ProductID)
+		if err != nil {
+			return errors.DatabaseError("Failed to get product").WithError(err)
+		}
+		product.StockQuantity -= item.Quantity
+
+		err = s.productRepo.UpdateProduct(ctx, product)
+		if err != nil {
+			return errors.DatabaseError("Failed to update inventory").WithError(err)
+		}
+	}
+	return nil
 }
