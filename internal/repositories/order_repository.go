@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
@@ -50,32 +51,24 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
-	if len(order.Items) == 0 {
-		return nil
-	}
+	// Insert order items
+	if len(order.Items) > 0 {
+		var queryBuilder strings.Builder
+		queryBuilder.WriteString("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ")
+		args := make([]any, 0, len(order.Items)*5)
 
-	// Insert order items in batch using PostgreSQL UNNEST
-	itemIDs := make([]uuid.UUID, len(order.Items))
-	productIDs := make([]uuid.UUID, len(order.Items))
-	quantities := make([]int, len(order.Items))
-	unitPrices := make([]float64, len(order.Items))
+		for i, item := range order.Items {
+			if i > 0 {
+				queryBuilder.WriteString(", ")
+			}
+			fmt.Fprintf(&queryBuilder, "($%d, $%d, $%d, $%d, $%d, NOW())", i*5+1, i*5+2, i*5+3, i*5+4, i*5+5)
+			args = append(args, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+		}
 
-	for i, item := range order.Items {
-		itemIDs[i] = item.ID
-		productIDs[i] = item.ProductID
-		quantities[i] = item.Quantity
-		unitPrices[i] = item.UnitPrice
-	}
-
-	batchQuery := `
-		INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
-		SELECT *, $2, NOW()
-		FROM UNNEST($1::uuid[], $3::uuid[], $4::int[], $5::numeric[])
-	`
-
-	_, err = r.DB.ExecContext(dbCtx, batchQuery, pq.Array(itemIDs), order.ID, pq.Array(productIDs), pq.Array(quantities), pq.Array(unitPrices))
-	if err != nil {
-		return fmt.Errorf("failed to insert order items: %w", err)
+		_, err = r.DB.ExecContext(dbCtx, queryBuilder.String(), args...)
+		if err != nil {
+			return fmt.Errorf("failed to insert order items: %w", err)
+		}
 	}
 
 	return nil
