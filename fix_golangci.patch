@@ -1,0 +1,12 @@
+--- .golangci.yaml
++++ .golangci.yaml
+@@ -51,7 +51,8 @@
+   max-same-issues: 10
+
+ output:
+-  formats: colored-line-number
++  formats:
++    - format: colored-line-number
+   sort-results: true
+   print-issued-lines: true
+   print-linter-name: true
