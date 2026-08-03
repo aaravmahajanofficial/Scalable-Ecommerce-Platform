@@ -1,0 +1,14 @@
+--- internal/repositories/database.go
++++ internal/repositories/database.go
+@@ -36,10 +36,10 @@
+	}
+
+	// DB stats collector
+-	if _, err := otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
++	if err := otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
+		semconv.DBSystemPostgreSQL,
+		semconv.DBNamespace(cfg.Database.Name),
+-	)); err != nil {
++	)); err != nil {
+		return nil, fmt.Errorf("failed to register DB stats metrics: %w", err)
+	}

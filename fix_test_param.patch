@@ -1,0 +1,11 @@
+--- internal/api/middleware/logging_test.go
++++ internal/api/middleware/logging_test.go
+@@ -51,7 +51,7 @@
+			logBuf.Reset()
+
+			var contextLogger *slog.Logger
+-			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
++			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Capture context logger inside the handler
+				contextLogger = middleware.LoggerFromContext(r.Context())
+				w.WriteHeader(tt.handlerStatusCode)

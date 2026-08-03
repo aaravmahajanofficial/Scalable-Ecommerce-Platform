@@ -1,0 +1,11 @@
+--- internal/repositories/database.go
++++ internal/repositories/database.go
+@@ -36,7 +36,7 @@
+	}
+
+	// Register metrics for the DB connection
+-	err, _ = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
++	err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(
+		attribute.String("db.system", "postgres"),
+	))
+	if err != nil {
