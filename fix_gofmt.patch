@@ -1,0 +1,28 @@
+--- internal/api/middleware/logging_test.go
++++ internal/api/middleware/logging_test.go
+@@ -83,11 +83,11 @@
+			assert.Contains(t, logOutput, `"http_method":"GET"`)
+			assert.Contains(t, logOutput, `"http_path":"/test-path"`)
+			assert.Contains(t, logOutput, `"remote_addr":"192.168.1.1:12345"`)
+			assert.Contains(t, logOutput, `"user_agent":"Test-Agent"`)
+-
++
+			if tt.existingRequestID != "" {
+				assert.Contains(t, logOutput, `"correlation_id":"test-correlation-id-123"`)
+			} else {
+				assert.Contains(t, logOutput, `"correlation_id":"`+resRequestID+`"`)
+			}
+-
++
+			// Check status code in log
+			// We can't simply check for `"http_status":201` directly because we need to parse JSON to be robust,
+			// but for this simple test, string check might be enough if formatted properly.
+@@ -138,7 +138,7 @@
+	defer slog.SetDefault(originalLogger)
+	slog.SetDefault(slog.New(logHandler))
+
+-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// Do not write header explicitly
+		w.Write([]byte("OK"))
+	})

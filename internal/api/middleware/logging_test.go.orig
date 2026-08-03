@@ -47,7 +47,7 @@ func TestLoggingMiddleware(t *testing.T) {
 			logBuf.Reset()
 
 			var contextLogger *slog.Logger
-			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				// Capture context logger inside the handler
 				contextLogger = middleware.LoggerFromContext(r.Context())
 				w.WriteHeader(tt.handlerStatusCode)
@@ -134,9 +134,11 @@ func TestResponseWriter_WriteHeader(t *testing.T) {
 	// We can also test default status code behavior
 	var logBuf bytes.Buffer
 	logHandler := slog.NewJSONHandler(&logBuf, nil)
+	originalLogger := slog.Default()
+	defer slog.SetDefault(originalLogger)
 	slog.SetDefault(slog.New(logHandler))
 
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Do not write header explicitly
 		w.Write([]byte("OK"))
 	})

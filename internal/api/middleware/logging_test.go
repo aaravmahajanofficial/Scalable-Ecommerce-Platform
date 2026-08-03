@@ -138,7 +138,7 @@ func TestResponseWriter_WriteHeader(t *testing.T) {
 	defer slog.SetDefault(originalLogger)
 	slog.SetDefault(slog.New(logHandler))
 
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Do not write header explicitly
 		w.Write([]byte("OK"))
 	})
