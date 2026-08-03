@@ -11,8 +11,6 @@ import (
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/config"
 	stripeClient "github.com/aaravmahajanofficial/scalable-ecommerce-platform/pkg/stripe"
 	"github.com/hellofresh/health-go/v5"
-	"github.com/hellofresh/health-go/v5/checks/postgres"
-	healthRedis "github.com/hellofresh/health-go/v5/checks/redis"
 	"github.com/redis/go-redis/v9"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/balance"
@@ -26,7 +24,6 @@ type HealthEndpoint struct {
 
 func NewReadinessHandler(cfg *config.Config, healthEndpoint *HealthEndpoint) (http.Handler, error) {
 	h, err := health.New(
-
 		health.WithComponent(health.Component{
 			Name:    cfg.OTel.ServiceName,
 			Version: "1.0.0",
@@ -37,19 +34,23 @@ func NewReadinessHandler(cfg *config.Config, healthEndpoint *HealthEndpoint) (ht
 				Name:      "database",
 				Timeout:   3 * time.Second,
 				SkipOnErr: false,
-				Check: postgres.New(postgres.Config{
-					DSN: cfg.Database.GetDSN(),
-				}),
+				Check: func(ctx context.Context) error {
+					if healthEndpoint.DB == nil {
+						return errors.New("database connection is not initialized")
+					}
+					return healthEndpoint.DB.PingContext(ctx)
+				},
 			},
 			health.Config{
 				Name:      "redis",
 				Timeout:   2 * time.Second,
 				SkipOnErr: false,
-				Check: healthRedis.New(
-					healthRedis.Config{
-						DSN: cfg.RedisConnect.GetDSN(),
-					},
-				),
+				Check: func(ctx context.Context) error {
+					if healthEndpoint.RedisClient == nil {
+						return errors.New("redis client is not initialized")
+					}
+					return healthEndpoint.RedisClient.Ping(ctx).Err()
+				},
 			},
 			health.Config{
 				Name:      "stripe",
