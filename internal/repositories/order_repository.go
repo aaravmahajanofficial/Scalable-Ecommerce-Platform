@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type OrderRepository interface {
@@ -52,19 +52,27 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 
 	// Insert order items
 	if len(order.Items) > 0 {
-		var queryBuilder strings.Builder
-		queryBuilder.WriteString("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ")
-		args := make([]interface{}, 0, len(order.Items)*5)
+		itemIDs := make([]uuid.UUID, 0, len(order.Items))
+		orderIDs := make([]uuid.UUID, 0, len(order.Items))
+		productIDs := make([]uuid.UUID, 0, len(order.Items))
+		quantities := make([]int, 0, len(order.Items))
+		unitPrices := make([]float64, 0, len(order.Items))
 
-		for i, item := range order.Items {
-			if i > 0 {
-				queryBuilder.WriteString(", ")
-			}
-			queryBuilder.WriteString(fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, NOW())", i*5+1, i*5+2, i*5+3, i*5+4, i*5+5))
-			args = append(args, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+		for _, item := range order.Items {
+			itemIDs = append(itemIDs, item.ID)
+			orderIDs = append(orderIDs, order.ID)
+			productIDs = append(productIDs, item.ProductID)
+			quantities = append(quantities, item.Quantity)
+			unitPrices = append(unitPrices, item.UnitPrice)
 		}
 
-		_, err = r.DB.ExecContext(dbCtx, queryBuilder.String(), args...)
+		query = `
+			INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
+			SELECT id, order_id, product_id, quantity, unit_price, NOW()
+			FROM UNNEST($1::uuid[], $2::uuid[], $3::uuid[], $4::int[], $5::numeric[]) AS t(id, order_id, product_id, quantity, unit_price)
+		`
+
+		_, err = r.DB.ExecContext(dbCtx, query, pq.Array(itemIDs), pq.Array(orderIDs), pq.Array(productIDs), pq.Array(quantities), pq.Array(unitPrices))
 		if err != nil {
 			return fmt.Errorf("failed to insert order items: %w", err)
 		}
