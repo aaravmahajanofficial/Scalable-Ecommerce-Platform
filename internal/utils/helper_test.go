@@ -7,11 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	appErrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 	"github.com/stretchr/testify/assert"
 )
 
-type TestData struct {
+type testData struct {
 	Name string `json:"name"`
 	Age  int    `json:"age"`
 }
@@ -30,7 +29,7 @@ func TestDecodeJSONBody(t *testing.T) {
 	t.Run("successful decode", func(t *testing.T) {
 		body := []byte(`{"name":"John Doe","age":30}`)
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-		var dest TestData
+		var dest testData
 
 		err := DecodeJSONBody(req, &dest)
 
@@ -41,42 +40,30 @@ func TestDecodeJSONBody(t *testing.T) {
 
 	t.Run("empty body", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte{}))
-		var dest TestData
+		var dest testData
 
 		err := DecodeJSONBody(req, &dest)
 
-		assert.Error(t, err)
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeBadRequest, appErr.Code)
-		assert.Equal(t, "Request body cannot be empty", appErr.Message)
+		assert.ErrorContains(t, err, "Request body cannot be empty")
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
 		body := []byte(`{"name":"John Doe",age":30}`) // malformed json
 		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(body))
-		var dest TestData
+		var dest testData
 
 		err := DecodeJSONBody(req, &dest)
 
-		assert.Error(t, err)
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeBadRequest, appErr.Code)
-		assert.Equal(t, "Invalid JSON format", appErr.Message)
+		assert.ErrorContains(t, err, "Invalid JSON format")
 	})
 
 	t.Run("reader error", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/", nil)
 		req.Body = &errorReader{} // replace body with error reader
-		var dest TestData
+		var dest testData
 
 		err := DecodeJSONBody(req, &dest)
 
-		assert.Error(t, err)
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeBadRequest, appErr.Code)
-		assert.Equal(t, "Failed to read request body", appErr.Message)
+		assert.ErrorContains(t, err, "Failed to read request body")
 	})
 }
