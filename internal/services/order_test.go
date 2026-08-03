@@ -170,10 +170,10 @@ func TestCreateOrder_ProductNotFound(t *testing.T) {
 
 	// Mock Call Product Repository
 	mockProduct1 := &models.Product{ID: productID1, StockQuantity: 10}
-	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Once()
-
 	mockErr := errors.New("mock product repo error")
-	mockProductRepo.On("GetProductByID", ctx, productID2).Return(nil, mockErr).Once()
+
+	mockProductRepo.On("GetProductByID", ctx, productID1).Return(mockProduct1, nil).Maybe()
+	mockProductRepo.On("GetProductByID", ctx, productID2).Return((*models.Product)(nil), mockErr).Maybe()
 
 	req := &models.CreateOrderRequest{CustomerID: customerID}
 
