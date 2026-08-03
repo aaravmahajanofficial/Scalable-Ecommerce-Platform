@@ -1,12 +1,12 @@
 package health
 
 import (
-	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"context"
+	"bytes"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/config"
 	stripeClient "github.com/aaravmahajanofficial/scalable-ecommerce-platform/pkg/stripe"
@@ -18,33 +18,18 @@ import (
 	"github.com/go-redis/redismock/v9"
 )
 
-type MockStripeBackend struct {
+// Minimal mock for stripe backend that avoids code duplication with other mocks.
+type StripeBackendMock struct {
 	mock.Mock
 }
 
-func (m *MockStripeBackend) Call(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
-	args := m.Called(method, path, key, params, v)
-	return args.Error(0)
+func (m *StripeBackendMock) Call(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+	return m.Called(method, path, key, params, v).Error(0)
 }
-
-func (m *MockStripeBackend) CallRaw(method, path, key string, body *form.Values, params *stripe.Params, v stripe.LastResponseSetter) error {
-	args := m.Called(method, path, key, body, params, v)
-	return args.Error(0)
-}
-
-func (m *MockStripeBackend) CallMultipart(method, path, key, boundary string, body *bytes.Buffer, params *stripe.Params, v stripe.LastResponseSetter) error {
-	args := m.Called(method, path, key, boundary, body, params, v)
-	return args.Error(0)
-}
-
-func (m *MockStripeBackend) CallStreaming(method, path, key string, params stripe.ParamsContainer, v stripe.StreamingLastResponseSetter) error {
-	args := m.Called(method, path, key, params, v)
-	return args.Error(0)
-}
-
-func (m *MockStripeBackend) SetMaxNetworkRetries(maxNetworkRetries int64) {
-	m.Called(maxNetworkRetries)
-}
+func (m *StripeBackendMock) CallRaw(method, path, key string, body *form.Values, params *stripe.Params, v stripe.LastResponseSetter) error { return nil }
+func (m *StripeBackendMock) CallMultipart(method, path, key, boundary string, body *bytes.Buffer, params *stripe.Params, v stripe.LastResponseSetter) error { return nil }
+func (m *StripeBackendMock) CallStreaming(method, path, key string, params stripe.ParamsContainer, v stripe.StreamingLastResponseSetter) error { return nil }
+func (m *StripeBackendMock) SetMaxNetworkRetries(maxNetworkRetries int64) {}
 
 func TestNewLivenessHandler(t *testing.T) {
 	handler := NewLivenessHandler()
@@ -58,6 +43,37 @@ func TestNewLivenessHandler(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "Service is alive")
 }
 
+func setupMocks(t *testing.T, stripeErr error) (*HealthEndpoint, sqlmock.Sqlmock, redismock.ClientMock) {
+	t.Helper()
+
+	db, sqlMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	assert.NoError(t, err)
+	sqlMock.ExpectPing().WillReturnError(nil)
+
+	redisClient, redisMock := redismock.NewClientMock()
+	redisMock.ExpectPing().SetVal("PONG")
+
+	var sc stripeClient.Client
+
+	endpoint := &HealthEndpoint{
+		DB:           db,
+		RedisClient:  redisClient,
+		StripeClient: &sc,
+	}
+
+	mockBackend := new(StripeBackendMock)
+	mockBackend.On("Call", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(stripeErr)
+
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	t.Cleanup(func() {
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		db.Close()
+	})
+	stripe.SetBackend(stripe.APIBackend, mockBackend)
+
+	return endpoint, sqlMock, redisMock
+}
+
 func TestNewReadinessHandler(t *testing.T) {
 	cfg := &config.Config{
 		OTel: config.OTelConfig{
@@ -66,32 +82,7 @@ func TestNewReadinessHandler(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// Mock SQL Database
-		db, sqlMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
-		assert.NoError(t, err)
-		defer db.Close()
-		sqlMock.ExpectPing().WillReturnError(nil)
-
-		// Mock Redis Client
-		redisClient, redisMock := redismock.NewClientMock()
-		redisMock.ExpectPing().SetVal("PONG")
-
-		// Mock Stripe Client
-		var sc stripeClient.Client
-
-		endpoint := &HealthEndpoint{
-			DB:           db,
-			RedisClient:  redisClient,
-			StripeClient: &sc,
-		}
-
-		mockBackend := new(MockStripeBackend)
-		mockBackend.On("Call", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-
-		// Set mock backend and ensure we restore original backend
-		originalBackend := stripe.GetBackend(stripe.APIBackend)
-		defer stripe.SetBackend(stripe.APIBackend, originalBackend)
-		stripe.SetBackend(stripe.APIBackend, mockBackend)
+		endpoint, sqlMock, redisMock := setupMocks(t, nil)
 
 		handler, err := NewReadinessHandler(cfg, endpoint)
 
@@ -130,27 +121,7 @@ func TestNewReadinessHandler(t *testing.T) {
 	})
 
 	t.Run("Stripe API Connection Error", func(t *testing.T) {
-		db, sqlMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
-		assert.NoError(t, err)
-		defer db.Close()
-		sqlMock.ExpectPing().WillReturnError(nil)
-
-		redisClient, redisMock := redismock.NewClientMock()
-		redisMock.ExpectPing().SetVal("PONG")
-
-		var sc stripeClient.Client
-		endpoint := &HealthEndpoint{
-			DB:           db,
-			RedisClient:  redisClient,
-			StripeClient: &sc,
-		}
-
-		mockBackend := new(MockStripeBackend)
-		mockBackend.On("Call", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("stripe error"))
-
-		originalBackend := stripe.GetBackend(stripe.APIBackend)
-		defer stripe.SetBackend(stripe.APIBackend, originalBackend)
-		stripe.SetBackend(stripe.APIBackend, mockBackend)
+		endpoint, _, _ := setupMocks(t, errors.New("stripe error"))
 
 		handler, err := NewReadinessHandler(cfg, endpoint)
 
@@ -166,27 +137,7 @@ func TestNewReadinessHandler(t *testing.T) {
 	})
 
 	t.Run("Stripe API Timeout Error", func(t *testing.T) {
-		db, sqlMock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
-		assert.NoError(t, err)
-		defer db.Close()
-		sqlMock.ExpectPing().WillReturnError(nil)
-
-		redisClient, redisMock := redismock.NewClientMock()
-		redisMock.ExpectPing().SetVal("PONG")
-
-		var sc stripeClient.Client
-		endpoint := &HealthEndpoint{
-			DB:           db,
-			RedisClient:  redisClient,
-			StripeClient: &sc,
-		}
-
-		mockBackend := new(MockStripeBackend)
-		mockBackend.On("Call", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(context.DeadlineExceeded)
-
-		originalBackend := stripe.GetBackend(stripe.APIBackend)
-		defer stripe.SetBackend(stripe.APIBackend, originalBackend)
-		stripe.SetBackend(stripe.APIBackend, mockBackend)
+		endpoint, _, _ := setupMocks(t, context.DeadlineExceeded)
 
 		handler, err := NewReadinessHandler(cfg, endpoint)
 
