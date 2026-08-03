@@ -11,6 +11,7 @@ import (
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type OrderRepository interface {
@@ -192,26 +193,34 @@ func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID u
 		orders = append(orders, order)
 	}
 
-	// now for each order we have to fetch the respective order items
-	query = `
-		SELECT id, product_id, quantity, unit_price, created_at
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error during order rows iteration: %w", err)
+	}
+
+	if len(orders) > 0 {
+		var orderIDs []uuid.UUID
+		for _, o := range orders {
+			orderIDs = append(orderIDs, o.ID)
+		}
+
+		// now for each order we have to fetch the respective order items
+		query = `
+		SELECT id, order_id, product_id, quantity, unit_price, created_at
 		FROM order_items
-		WHERE order_id = $1
+		WHERE order_id = ANY($1)
 	`
 
-	for i := range orders {
-		// Get the order items
-		itemsRows, err := r.DB.QueryContext(dbCtx, query, orders[i].ID)
+		itemsRows, err := r.DB.QueryContext(dbCtx, query, pq.Array(orderIDs))
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to get the orders: %w", err)
 		}
 
-		var items []models.OrderItem
+		itemsByOrder := make(map[uuid.UUID][]models.OrderItem)
 
 		for itemsRows.Next() {
 			var item models.OrderItem
 
-			scanErr := itemsRows.Scan(&item.ID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.CreatedAt)
+			scanErr := itemsRows.Scan(&item.ID, &item.OrderID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.CreatedAt)
 			if scanErr != nil {
 				closeErr := itemsRows.Close()
 				if closeErr != nil {
@@ -220,19 +229,20 @@ func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID u
 				return nil, 0, fmt.Errorf("failed to scan order item: %w", scanErr)
 			}
 
-			item.OrderID = orders[i].ID
-			items = append(items, item)
+			itemsByOrder[item.OrderID] = append(itemsByOrder[item.OrderID], item)
+		}
+
+		if err := itemsRows.Err(); err != nil {
+			return nil, 0, fmt.Errorf("error during item rows iteration: %w", err)
 		}
 
 		if err := itemsRows.Close(); err != nil {
 			return nil, 0, fmt.Errorf("failed to close itemsRows: %v", err)
 		}
 
-		orders[i].Items = items
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("error during order rows iteration: %w", err)
+		for i := range orders {
+			orders[i].Items = itemsByOrder[orders[i].ID]
+		}
 	}
 
 	return orders, total, nil
