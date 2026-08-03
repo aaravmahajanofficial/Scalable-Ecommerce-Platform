@@ -7,6 +7,8 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY ./cmd/scalable-ecommerce-platform ./cmd/scalable-ecommerce-platform
+COPY ./pkg ./pkg
+COPY ./docs ./docs
 COPY ./internal ./internal
 
 # creates statically linked executable, it contains all the code it needs to run, strips debug info to reduce binary size
