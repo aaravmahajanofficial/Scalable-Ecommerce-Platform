@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
@@ -50,15 +51,22 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 	}
 
 	// Insert order items
-	for _, item := range order.Items {
-		query := `
-			INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
-			VALUES ($1, $2, $3, $4, $5, NOW())
-		`
+	if len(order.Items) > 0 {
+		var queryBuilder strings.Builder
+		queryBuilder.WriteString("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ")
+		args := make([]interface{}, 0, len(order.Items)*5)
 
-		_, err := r.DB.ExecContext(dbCtx, query, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+		for i, item := range order.Items {
+			if i > 0 {
+				queryBuilder.WriteString(", ")
+			}
+			queryBuilder.WriteString(fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, NOW())", i*5+1, i*5+2, i*5+3, i*5+4, i*5+5))
+			args = append(args, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+		}
+
+		_, err = r.DB.ExecContext(dbCtx, queryBuilder.String(), args...)
 		if err != nil {
-			return fmt.Errorf("failed to insert an order item: %w", err)
+			return fmt.Errorf("failed to insert order items: %w", err)
 		}
 	}
 
