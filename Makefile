@@ -14,7 +14,7 @@ GO_PACKAGES := $(shell go list ./... | grep -v /vendor/)
 COVER_PACKAGES := $(shell go list ./... | grep -vE 'mocks|docs|testutils|cmd|internal/utils|internal/errors|internal/health|internal/metrics|pkg/stripe|pkg/sendGrid/mocks')
 GO_BUILD_ENV := CGO_ENABLED=0
 GO_VERSION := $(shell go version | cut -d " " -f 3 | cut -d "o" -f 2)
-REQUIRED_GO_VERSION := 1.25  # Update to minimum required Go version
+REQUIRED_GO_VERSION := 1.22  # Update to minimum required Go version
 
 # Define the architecture to build for
 ARCH := $(shell uname -m)
