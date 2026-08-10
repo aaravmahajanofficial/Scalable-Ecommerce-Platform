@@ -10,6 +10,8 @@ COPY ./cmd/scalable-ecommerce-platform ./cmd/scalable-ecommerce-platform
 COPY ./pkg ./pkg
 COPY ./docs ./docs
 COPY ./internal ./internal
+COPY ./pkg ./pkg
+COPY ./docs ./docs
 
 # creates statically linked executable, it contains all the code it needs to run, strips debug info to reduce binary size
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/scalable-ecommerce ./cmd/scalable-ecommerce-platform/
