@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -111,17 +112,17 @@ func MustLoad() *Config {
 		}
 	}
 
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		log.Fatalf("config file does not exist: %s", configPath)
+	if _, err := os.Stat(filepath.Clean(configPath)); os.IsNotExist(err) {
+		log.Fatalf("config file does not exist")
 	} else if err != nil {
-		log.Fatalf("error accessing config file at %s: %v", configPath, err)
+		log.Fatalf("error accessing config file")
 	}
 
 	var cfg Config
 
 	err := cleanenv.ReadConfig(configPath, &cfg)
 	if err != nil {
-		log.Fatalf("cannot read config file: %s", err.Error())
+		log.Fatalf("cannot read config file: %v", err)
 	}
 
 	// Environment variables can override the defaults
@@ -138,7 +139,7 @@ func LoadConfigFromPath(configPath string) (*Config, error) {
 		return nil, errors.New("config path is empty")
 	}
 
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Clean(configPath)); os.IsNotExist(err) {
 		return nil, fmt.Errorf("config file does not exist: %s", configPath)
 	}
 
