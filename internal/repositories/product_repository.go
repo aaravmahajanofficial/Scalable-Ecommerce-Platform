@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
@@ -16,6 +17,7 @@ type ProductRepository interface {
 	GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error)
 	GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Product, error)
 	UpdateProduct(ctx context.Context, product *models.Product) error
+	UpdateProducts(ctx context.Context, products []*models.Product) error
 	ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error)
 }
 
@@ -112,6 +114,35 @@ func (r *productRepository) UpdateProduct(ctx context.Context, product *models.P
 	`
 
 	return r.DB.QueryRowContext(dbCtx, query, product.CategoryID, product.Name, product.Description, product.Price, product.StockQuantity, product.Status, product.ID).Scan(&product.UpdatedAt)
+}
+
+func (r *productRepository) UpdateProducts(ctx context.Context, products []*models.Product) error {
+	if len(products) == 0 {
+		return nil
+	}
+	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	defer cancel()
+
+	query := `
+		UPDATE products as p SET
+			stock_quantity = c.stock_quantity,
+			updated_at = NOW()
+		FROM (VALUES
+	`
+
+	values := make([]interface{}, 0, len(products)*2)
+	queryArgs := make([]string, 0, len(products))
+
+	for i, product := range products {
+		queryArgs = append(queryArgs, fmt.Sprintf("($%d::uuid, $%d::int)", i*2+1, i*2+2))
+		values = append(values, product.ID, product.StockQuantity)
+	}
+
+	// #nosec G202
+	query += fmt.Sprintf("%s\n) as c(id, stock_quantity)\nWHERE p.id = c.id;", strings.Join(queryArgs, ","))
+
+	_, err := r.DB.ExecContext(dbCtx, query, values...)
+	return err
 }
 
 func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error) {
