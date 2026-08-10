@@ -77,13 +77,17 @@ func TestCreateOrder_Success(t *testing.T) {
 		if len(products) != 2 {
 			return false
 		}
-		var matchedCount int
+		found1 := false
+		found2 := false
 		for _, p := range products {
-			if (p.ID == productID1 && p.StockQuantity == 8) || (p.ID == productID2 && p.StockQuantity == 4) {
-				matchedCount++
+			if p.ID == productID1 && p.StockQuantity == 8 {
+				found1 = true
+			}
+			if p.ID == productID2 && p.StockQuantity == 4 {
+				found2 = true
 			}
 		}
-		return matchedCount == 2
+		return found1 && found2
 	})).Return(nil).Once()
 
 	req := &models.CreateOrderRequest{

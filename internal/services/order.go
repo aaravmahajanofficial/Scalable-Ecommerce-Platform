@@ -124,8 +124,19 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 		return nil, apperrors.DatabaseError("Failed to create order").WithError(err)
 	}
 
-	if err := s.updateInventory(ctx, cart, productMap); err != nil {
-		return nil, err
+	var updatedProducts []*models.Product
+	for _, item := range cart.Items {
+		if product, exists := productMap[item.ProductID]; exists {
+			product.StockQuantity -= item.Quantity
+			updatedProducts = append(updatedProducts, product)
+		}
+	}
+
+	if len(updatedProducts) > 0 {
+		err = s.productRepo.UpdateProducts(ctx, updatedProducts)
+		if err != nil {
+			return nil, apperrors.DatabaseError("Failed to update inventory").WithError(err)
+		}
 	}
 
 	return order, nil

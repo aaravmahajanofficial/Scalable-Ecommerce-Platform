@@ -3,9 +3,8 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
-	"log/slog"
+	"strings"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
@@ -142,45 +141,28 @@ func (r *productRepository) UpdateProducts(ctx context.Context, products []*mode
 	if len(products) == 0 {
 		return nil
 	}
-
 	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
 
-	tx, err := r.DB.BeginTx(dbCtx, nil)
-	if err != nil {
-		return fmt.Errorf("beginning transaction for products update: %w", err)
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			slog.Error("failed to rollback transaction", slog.Any("error", rollbackErr))
-		}
-	}()
+	query := `
+		UPDATE products as p SET
+			stock_quantity = c.stock_quantity,
+			updated_at = NOW()
+		FROM (VALUES
+	`
 
-	stmt, err := tx.PrepareContext(dbCtx, `
-		UPDATE products SET category_id = $1, name = $2, description = $3, price = $4, stock_quantity = $5, status = $6, updated_at = NOW()
-		WHERE id = $7
-		RETURNING updated_at
-	`)
-	if err != nil {
-		return fmt.Errorf("preparing update statement: %w", err)
-	}
-	defer func() {
-		if closeErr := stmt.Close(); closeErr != nil {
-			slog.Error("failed to close statement", slog.Any("error", closeErr))
-		}
-	}()
+	values := make([]any, 0, len(products)*2)
+	queryArgs := make([]string, 0, len(products))
 
-	for _, product := range products {
-		if err := stmt.QueryRowContext(dbCtx, product.CategoryID, product.Name, product.Description, product.Price, product.StockQuantity, product.Status, product.ID).Scan(&product.UpdatedAt); err != nil {
-			return fmt.Errorf("updating product %s: %w", product.ID, err)
-		}
+	for i, product := range products {
+		queryArgs = append(queryArgs, fmt.Sprintf("($%d::uuid, $%d::int)", i*2+1, i*2+2))
+		values = append(values, product.ID, product.StockQuantity)
 	}
 
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing batch product update: %w", err)
-	}
+	query += fmt.Sprintf("%s\n) as c(id, stock_quantity)\nWHERE p.id = c.id;", strings.Join(queryArgs, ",")) //nolint:gosec // parameterized placeholder query
 
-	return nil
+	_, err := r.DB.ExecContext(dbCtx, query, values...)
+	return err
 }
 
 func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error) {
