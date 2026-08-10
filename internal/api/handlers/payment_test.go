@@ -577,6 +577,23 @@ func TestHandleStripeWebhook(t *testing.T) {
 		mockPaymentService.AssertExpectations(t)
 	})
 
+	t.Run("Failure - Read Body Error", func(t *testing.T) {
+		// Arrange
+		req := testutils.CreateTestRequestWithoutContext(http.MethodPost, "/payments/webhook", errorReader{}, nil)
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+
+		// Act
+		handler := paymentHandler.HandleStripeWebhook()
+		handler.ServeHTTP(rr, req)
+
+		// Assert
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), appErrors.ErrCodeBadRequest)
+		mockPaymentService.AssertNotCalled(t, "ProcessWebhook")
+	})
+
 	t.Run("Failure - Missing Signature", func(t *testing.T) {
 		// Arrange
 		payload := []byte(`{"id": "evt_123", "type": "payment_intent.succeeded"}`)
@@ -645,4 +662,10 @@ func TestHandleStripeWebhook(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), appErrors.ErrCodeInternal)
 		mockPaymentService.AssertExpectations(t)
 	})
+}
+
+type errorReader struct{}
+
+func (errorReader) Read(p []byte) (n int, err error) {
+	return 0, fmt.Errorf("mock read error")
 }
