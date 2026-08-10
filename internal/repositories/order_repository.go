@@ -49,16 +49,25 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
-	// Insert order items
-	for _, item := range order.Items {
-		query := `
-			INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
-			VALUES ($1, $2, $3, $4, $5, NOW())
-		`
+	// Insert order items if there are any
+	if len(order.Items) > 0 {
+		query := `INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES `
+		values := make([]interface{}, 0, len(order.Items)*5)
 
-		_, err := r.DB.ExecContext(dbCtx, query, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+		for i, item := range order.Items {
+			if i > 0 {
+				query += ", "
+			}
+
+			offset := i * 5
+			query += fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, NOW())", offset+1, offset+2, offset+3, offset+4, offset+5)
+
+			values = append(values, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+		}
+
+		_, err := r.DB.ExecContext(dbCtx, query, values...)
 		if err != nil {
-			return fmt.Errorf("failed to insert an order item: %w", err)
+			return fmt.Errorf("failed to insert order items: %w", err)
 		}
 	}
 
