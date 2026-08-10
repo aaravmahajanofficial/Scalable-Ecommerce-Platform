@@ -38,26 +38,11 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 		return nil, errors.BadRequestError("Cannot create order with empty cart")
 	}
 
-	var productIDs []uuid.UUID
-	for _, item := range cart.Items {
-		productIDs = append(productIDs, item.ProductID)
-	}
-
-	products, err := s.productRepo.GetProductsByIDs(ctx, productIDs)
-	if err != nil {
-		return nil, errors.DatabaseError("Failed to fetch products").WithError(err)
-	}
-
-	productMap := make(map[uuid.UUID]*models.Product)
-	for _, p := range products {
-		productMap[p.ID] = p
-	}
-
 	// now check the availability of the product
 	for _, item := range cart.Items {
-		product, exists := productMap[item.ProductID]
-		if !exists {
-			return nil, errors.NotFoundError("Product not found: " + item.ProductID.String())
+		product, err := s.productRepo.GetProductByID(ctx, item.ProductID)
+		if err != nil {
+			return nil, errors.NotFoundError("Product not found: " + item.ProductID.String()).WithError(err)
 		}
 
 		if product.StockQuantity < item.Quantity {
@@ -109,13 +94,15 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 	}
 
 	for _, item := range cart.Items {
-		if product, exists := productMap[item.ProductID]; exists {
-			product.StockQuantity -= item.Quantity
+		product, err := s.productRepo.GetProductByID(ctx, item.ProductID)
+		if err != nil {
+			return nil, errors.DatabaseError("Failed to get product").WithError(err)
+		}
+		product.StockQuantity -= item.Quantity
 
-			err = s.productRepo.UpdateProduct(ctx, product)
-			if err != nil {
-				return nil, errors.DatabaseError("Failed to update inventory").WithError(err)
-			}
+		err = s.productRepo.UpdateProduct(ctx, product)
+		if err != nil {
+			return nil, errors.DatabaseError("Failed to update inventory").WithError(err)
 		}
 	}
 
