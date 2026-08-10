@@ -28,7 +28,7 @@ func NewProductRepo(db *sql.DB) ProductRepository {
 }
 
 func (r *productRepository) CreateProduct(ctx context.Context, product *models.Product) error {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, utils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `INSERT INTO products (category_id, name, description, price, stock_quantity, sku, status)
@@ -40,7 +40,7 @@ func (r *productRepository) CreateProduct(ctx context.Context, product *models.P
 }
 
 func (r *productRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, utils.DefaultDBTimeout)
 	defer cancel()
 
 	product := &models.Product{}
@@ -66,7 +66,7 @@ func (r *productRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*
 }
 
 func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Product, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, utils.DefaultDBTimeout)
 	defer cancel()
 
 	if len(ids) == 0 {
@@ -102,7 +102,7 @@ func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 func (r *productRepository) UpdateProduct(ctx context.Context, product *models.Product) error {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, utils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `
@@ -115,7 +115,7 @@ func (r *productRepository) UpdateProduct(ctx context.Context, product *models.P
 }
 
 func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, utils.DefaultDBTimeout)
 	defer cancel()
 
 	var total int
