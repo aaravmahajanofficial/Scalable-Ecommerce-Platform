@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	models "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +25,7 @@ func NewUserRepo(db *sql.DB) UserRepository {
 }
 
 func (r *userRepository) CreateUser(ctx context.Context, user *models.User) error {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := withDBTimeout(ctx)
 	defer cancel()
 
 	query := `
@@ -38,7 +37,7 @@ func (r *userRepository) CreateUser(ctx context.Context, user *models.User) erro
 }
 
 func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := withDBTimeout(ctx)
 	defer cancel()
 
 	user := &models.User{} // user holds the address of the new instance of new User models
@@ -58,7 +57,7 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 }
 
 func (r *userRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := withDBTimeout(ctx)
 	defer cancel()
 
 	user := &models.User{}

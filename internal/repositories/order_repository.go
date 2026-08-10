@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/google/uuid"
 )
 
@@ -30,7 +29,7 @@ func NewOrderRepository(db *sql.DB) OrderRepository {
 }
 
 func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) error {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := withDBTimeout(ctx)
 	defer cancel()
 
 	shippingAddress, err := json.Marshal(order.ShippingAddress)
@@ -67,7 +66,7 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 
 // Get the order items.
 func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := withDBTimeout(ctx)
 	defer cancel()
 
 	order := &models.Order{
@@ -140,7 +139,7 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 
 */
 func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID, page int, size int) ([]models.Order, int, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := withDBTimeout(ctx)
 	defer cancel()
 
 	var total int
@@ -240,7 +239,7 @@ func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID u
 
 // Update Order status.
 func (r *orderRepository) UpdateOrderStatus(ctx context.Context, id uuid.UUID, status models.OrderStatus) (*models.Order, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := withDBTimeout(ctx)
 	defer cancel()
 
 	query := `
@@ -271,7 +270,7 @@ func (r *orderRepository) UpdateOrderStatus(ctx context.Context, id uuid.UUID, s
 
 // Update the Payment Status and Payment Intent ID of an order.
 func (r *orderRepository) UpdatePaymentStatus(ctx context.Context, id uuid.UUID, status models.PaymentStatus, paymentIntentID string) error {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := withDBTimeout(ctx)
 	defer cancel()
 
 	query := `
