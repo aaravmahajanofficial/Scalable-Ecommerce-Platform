@@ -1,6 +1,5 @@
 run:
   timeout: 5m
-  go: "1.24.2"
   issues:
     exclude-dirs:
       - vendor
@@ -9,17 +8,17 @@ run:
 
 linters:
   enable:
-    - govet # Examines Go source code and reports suspicious constructs
-    - staticcheck # Go static analysis, applying a ton of rules
-    - errcheck # Ensures that errors are handled
-    - gocyclo # Computes and checks the cyclomatic complexity of functions
-    - revive # Fast, configurable, extensible, flexible linter for Go
-    - gofmt # Checks if code was gofmt-ed
-    - goimports # Checks import statements are formatted according to goimports
-    - bodyclose # Checks whether HTTP response bodies are closed
-    - gosec # Inspects source code for security problems
-    - unused # Checks for unused constants, variables, functions and types
-    - nilnil # Checks that there is no simultaneous return of nil error and an invalid value
+    - govet
+    - staticcheck
+    - errcheck
+    - gocyclo
+    - revive
+    - gofmt
+    - goimports
+    - bodyclose
+    - gosec
+    - unused
+    - nilnil
 
 linters-settings:
   exhaustruct:
@@ -57,17 +56,16 @@ issues:
     - path: "vendor/.*"
       linters:
         - all
-    # Don't check test files with certain linters
     - path: "_test\\.go"
       linters:
         - gosec
         - errcheck
-  # Limit the number of issues per linter
   max-issues-per-linter: 50
   max-same-issues: 10
 
 output:
-  formats: colored-line-number
+  formats:
+    - format: colored-line-number
   sort-results: true
   print-issued-lines: true
   print-linter-name: true
