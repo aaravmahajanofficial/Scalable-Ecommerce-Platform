@@ -28,14 +28,39 @@ func NewOrderService(orderRepo repository.OrderRepository, cartRepo repository.C
 }
 
 func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderRequest) (*models.Order, error) {
-	// Check if the cart exists or not
-	cart, err := s.cartRepo.GetCartByCustomerID(ctx, req.CustomerID)
+	cart, productMap, err := s.validateCartAndGetProducts(ctx, req.CustomerID)
 	if err != nil {
-		return nil, errors.NotFoundError("Cart not found").WithError(err)
+		return nil, err
+	}
+
+	err = s.checkProductAvailability(cart, productMap)
+	if err != nil {
+		return nil, err
+	}
+
+	order := s.assembleOrder(req)
+
+	err = s.orderRepo.CreateOrder(ctx, order)
+	if err != nil {
+		return nil, errors.DatabaseError("Failed to create order").WithError(err)
+	}
+
+	err = s.updateInventory(ctx, cart, productMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return order, nil
+}
+
+func (s *orderService) validateCartAndGetProducts(ctx context.Context, customerID uuid.UUID) (*models.Cart, map[uuid.UUID]*models.Product, error) {
+	cart, err := s.cartRepo.GetCartByCustomerID(ctx, customerID)
+	if err != nil {
+		return nil, nil, errors.NotFoundError("Cart not found").WithError(err)
 	}
 
 	if len(cart.Items) == 0 {
-		return nil, errors.BadRequestError("Cannot create order with empty cart")
+		return nil, nil, errors.BadRequestError("Cannot create order with empty cart")
 	}
 
 	var productIDs []uuid.UUID
@@ -45,7 +70,7 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 
 	products, err := s.productRepo.GetProductsByIDs(ctx, productIDs)
 	if err != nil {
-		return nil, errors.DatabaseError("Failed to fetch products").WithError(err)
+		return nil, nil, errors.DatabaseError("Failed to fetch products").WithError(err)
 	}
 
 	productMap := make(map[uuid.UUID]*models.Product)
@@ -53,26 +78,30 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 		productMap[p.ID] = p
 	}
 
-	// now check the availability of the product
+	return cart, productMap, nil
+}
+
+func (s *orderService) checkProductAvailability(cart *models.Cart, productMap map[uuid.UUID]*models.Product) error {
 	for _, item := range cart.Items {
 		product, exists := productMap[item.ProductID]
 		if !exists {
-			return nil, errors.NotFoundError("Product not found: " + item.ProductID.String())
+			return errors.NotFoundError("Product not found: " + item.ProductID.String())
 		}
 
 		if product.StockQuantity < item.Quantity {
-			return nil, errors.BadRequestError("Insufficient stock for product: " + item.ProductID.String())
+			return errors.BadRequestError("Insufficient stock for product: " + item.ProductID.String())
 		}
 	}
+	return nil
+}
 
-	// calculate the order total
+func (s *orderService) assembleOrder(req *models.CreateOrderRequest) *models.Order {
 	var grossTotal float64
 
 	for _, item := range req.Items {
 		grossTotal += float64(item.Quantity) * item.UnitPrice
 	}
 
-	// assemble the order struct
 	order := &models.Order{
 		ID:              uuid.New(),
 		CustomerID:      req.CustomerID,
@@ -83,8 +112,6 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
-
-	// now add the items
 
 	var items []models.OrderItem
 
@@ -103,23 +130,21 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 
 	order.Items = items
 
-	err = s.orderRepo.CreateOrder(ctx, order)
-	if err != nil {
-		return nil, errors.DatabaseError("Failed to create order").WithError(err)
-	}
+	return order
+}
 
+func (s *orderService) updateInventory(ctx context.Context, cart *models.Cart, productMap map[uuid.UUID]*models.Product) error {
 	for _, item := range cart.Items {
 		if product, exists := productMap[item.ProductID]; exists {
 			product.StockQuantity -= item.Quantity
 
-			err = s.productRepo.UpdateProduct(ctx, product)
+			err := s.productRepo.UpdateProduct(ctx, product)
 			if err != nil {
-				return nil, errors.DatabaseError("Failed to update inventory").WithError(err)
+				return errors.DatabaseError("Failed to update inventory").WithError(err)
 			}
 		}
 	}
-
-	return order, nil
+	return nil
 }
 
 func (s *orderService) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
