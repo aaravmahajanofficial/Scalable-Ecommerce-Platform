@@ -26,7 +26,7 @@ func NewUserRepo(db *sql.DB) UserRepository {
 }
 
 func (r *userRepository) CreateUser(ctx context.Context, user *models.User) error {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, utils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `
@@ -38,7 +38,7 @@ func (r *userRepository) CreateUser(ctx context.Context, user *models.User) erro
 }
 
 func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, utils.DefaultDBTimeout)
 	defer cancel()
 
 	user := &models.User{} // user holds the address of the new instance of new User models
@@ -58,7 +58,7 @@ func (r *userRepository) GetUserByEmail(ctx context.Context, email string) (*mod
 }
 
 func (r *userRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, utils.DefaultDBTimeout)
 	defer cancel()
 
 	user := &models.User{}
