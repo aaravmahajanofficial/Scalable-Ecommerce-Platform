@@ -99,7 +99,11 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Load config
-	cfg := config.MustLoad()
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("❌ Failed to load configuration", "error", err.Error())
+		os.Exit(1)
+	}
 
 	tracerShutdown, err := initTracer(cfg)
 	if err != nil {
