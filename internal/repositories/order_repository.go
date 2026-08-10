@@ -11,6 +11,7 @@ import (
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type OrderRepository interface {
@@ -50,15 +51,30 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 	}
 
 	// Insert order items
-	for _, item := range order.Items {
-		query := `
+	if len(order.Items) > 0 {
+		itemIDs := make([]uuid.UUID, 0, len(order.Items))
+		orderIDs := make([]uuid.UUID, 0, len(order.Items))
+		productIDs := make([]uuid.UUID, 0, len(order.Items))
+		quantities := make([]int, 0, len(order.Items))
+		unitPrices := make([]float64, 0, len(order.Items))
+
+		for _, item := range order.Items {
+			itemIDs = append(itemIDs, item.ID)
+			orderIDs = append(orderIDs, order.ID)
+			productIDs = append(productIDs, item.ProductID)
+			quantities = append(quantities, item.Quantity)
+			unitPrices = append(unitPrices, item.UnitPrice)
+		}
+
+		query = `
 			INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
-			VALUES ($1, $2, $3, $4, $5, NOW())
+			SELECT id, order_id, product_id, quantity, unit_price, NOW()
+			FROM UNNEST($1::uuid[], $2::uuid[], $3::uuid[], $4::int[], $5::numeric[]) AS t(id, order_id, product_id, quantity, unit_price)
 		`
 
-		_, err := r.DB.ExecContext(dbCtx, query, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+		_, err = r.DB.ExecContext(dbCtx, query, pq.Array(itemIDs), pq.Array(orderIDs), pq.Array(productIDs), pq.Array(quantities), pq.Array(unitPrices))
 		if err != nil {
-			return fmt.Errorf("failed to insert an order item: %w", err)
+			return fmt.Errorf("failed to insert order items: %w", err)
 		}
 	}
 
