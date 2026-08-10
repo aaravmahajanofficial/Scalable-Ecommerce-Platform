@@ -50,32 +50,26 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
-	if len(order.Items) == 0 {
-		return nil
-	}
+	// Insert order items if there are any
+	if len(order.Items) > 0 {
+		query := `INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES `
+		values := make([]interface{}, 0, len(order.Items)*5)
 
-	// Insert order items in batch using PostgreSQL UNNEST
-	itemIDs := make([]uuid.UUID, len(order.Items))
-	productIDs := make([]uuid.UUID, len(order.Items))
-	quantities := make([]int, len(order.Items))
-	unitPrices := make([]float64, len(order.Items))
+		for i, item := range order.Items {
+			if i > 0 {
+				query += ", "
+			}
 
-	for i, item := range order.Items {
-		itemIDs[i] = item.ID
-		productIDs[i] = item.ProductID
-		quantities[i] = item.Quantity
-		unitPrices[i] = item.UnitPrice
-	}
+			offset := i * 5
+			query += fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, NOW())", offset+1, offset+2, offset+3, offset+4, offset+5)
 
-	batchQuery := `
-		INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
-		SELECT *, $2, NOW()
-		FROM UNNEST($1::uuid[], $3::uuid[], $4::int[], $5::numeric[])
-	`
+			values = append(values, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+		}
 
-	_, err = r.DB.ExecContext(dbCtx, batchQuery, pq.Array(itemIDs), order.ID, pq.Array(productIDs), pq.Array(quantities), pq.Array(unitPrices))
-	if err != nil {
-		return fmt.Errorf("failed to insert order items: %w", err)
+		_, err := r.DB.ExecContext(dbCtx, query, values...)
+		if err != nil {
+			return fmt.Errorf("failed to insert order items: %w", err)
+		}
 	}
 
 	return nil
