@@ -23,12 +23,12 @@ type redisRepository struct {
 
 func NewRedisClient(cfg *config.Config) (*redis.Client, error) {
 	redisURL := cfg.RedisConnect.GetDSN()
-	slog.Info("Connecting to Redis", slog.String("url", fmt.Sprintf("redis://%s:<password>@%s:%s", cfg.RedisConnect.Username, cfg.RedisConnect.Host, cfg.RedisConnect.Port)))
+	slog.Info("Connecting to Redis", slog.String("host", cfg.RedisConnect.Host), slog.String("port", cfg.RedisConnect.Port))
 
 	// Parse the Redis URL
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
-		slog.Error("Failed to parse Redis URL", slog.Any("error", err), slog.String("url", redisURL))
+		slog.Error("Failed to parse Redis URL", slog.Any("error", err))
 
 		return nil, fmt.Errorf("failed to parse Redis URL: %w", err)
 	}
