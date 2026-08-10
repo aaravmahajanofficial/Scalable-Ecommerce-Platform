@@ -52,30 +52,13 @@ func TestCreateTestRequestWithContext(t *testing.T) {
 
 			req := testutils.CreateTestRequestWithContext(tt.method, tt.target, body, tt.userID, tt.pathParams)
 
-			assert.NotNil(t, req)
-			assert.Equal(t, tt.method, req.Method)
-			assert.Equal(t, tt.target, req.URL.String())
-
-			if tt.bodyStr != "" {
-				assert.NotNil(t, req.Body)
-				reqBody, err := io.ReadAll(req.Body)
-				assert.NoError(t, err)
-				assert.Equal(t, tt.bodyStr, string(reqBody))
-			}
-
-			for k, v := range tt.pathParams {
-				assert.Equal(t, v, req.PathValue(k))
-			}
+			assertCommonRequestProperties(t, req, tt.method, tt.target, tt.bodyStr, tt.pathParams)
 
 			claims, ok := req.Context().Value(middleware.UserContextKey).(*models.Claims)
 			assert.True(t, ok)
 			assert.NotNil(t, claims)
 			assert.Equal(t, tt.userID, claims.UserID)
 			assert.Equal(t, "test@example.com", claims.Email)
-
-			logger, ok := req.Context().Value(middleware.LoggerKey).(*slog.Logger)
-			assert.True(t, ok)
-			assert.NotNil(t, logger)
 		})
 	}
 }
@@ -113,27 +96,31 @@ func TestCreateTestRequestWithoutContext(t *testing.T) {
 
 			req := testutils.CreateTestRequestWithoutContext(tt.method, tt.target, body, tt.pathParams)
 
-			assert.NotNil(t, req)
-			assert.Equal(t, tt.method, req.Method)
-			assert.Equal(t, tt.target, req.URL.String())
-
-			if tt.bodyStr != "" {
-				assert.NotNil(t, req.Body)
-				reqBody, err := io.ReadAll(req.Body)
-				assert.NoError(t, err)
-				assert.Equal(t, tt.bodyStr, string(reqBody))
-			}
-
-			for k, v := range tt.pathParams {
-				assert.Equal(t, v, req.PathValue(k))
-			}
+			assertCommonRequestProperties(t, req, tt.method, tt.target, tt.bodyStr, tt.pathParams)
 
 			claims := req.Context().Value(middleware.UserContextKey)
 			assert.Nil(t, claims)
-
-			logger, ok := req.Context().Value(middleware.LoggerKey).(*slog.Logger)
-			assert.True(t, ok)
-			assert.NotNil(t, logger)
 		})
 	}
+}
+
+func assertCommonRequestProperties(t *testing.T, req *http.Request, method, target, bodyStr string, pathParams map[string]string) {
+	assert.NotNil(t, req)
+	assert.Equal(t, method, req.Method)
+	assert.Equal(t, target, req.URL.String())
+
+	if bodyStr != "" {
+		assert.NotNil(t, req.Body)
+		reqBody, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, bodyStr, string(reqBody))
+	}
+
+	for k, v := range pathParams {
+		assert.Equal(t, v, req.PathValue(k))
+	}
+
+	logger, ok := req.Context().Value(middleware.LoggerKey).(*slog.Logger)
+	assert.True(t, ok)
+	assert.NotNil(t, logger)
 }
