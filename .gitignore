@@ -3,4 +3,5 @@
 /config
 /tmp
 .vscode
-bin/
+bin//vendor/
+vendor/
