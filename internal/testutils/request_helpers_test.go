@@ -107,7 +107,7 @@ func TestCreateTestRequestWithoutContext(t *testing.T) {
 func assertCommonRequestProperties(t *testing.T, req *http.Request, method, target, bodyStr string, pathParams map[string]string) {
 	assert.NotNil(t, req)
 	assert.Equal(t, method, req.Method)
-	assert.Equal(t, target, req.URL.String())
+	assert.Equal(t, target, req.URL.Path)
 
 	if bodyStr != "" {
 		assert.NotNil(t, req.Body)
