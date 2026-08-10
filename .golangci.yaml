@@ -1,6 +1,6 @@
 run:
   timeout: 5m
-  go: "1.24.2"
+  go: "1.24"
   issues:
     exclude-dirs:
       - vendor
@@ -67,7 +67,7 @@ issues:
   max-same-issues: 10
 
 output:
-  formats: colored-line-number
+  formats: [{format: colored-line-number}]
   sort-results: true
   print-issued-lines: true
   print-linter-name: true
