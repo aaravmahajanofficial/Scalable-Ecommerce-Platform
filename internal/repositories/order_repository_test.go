@@ -1,6 +1,7 @@
 package repository_test
 
 import (
+	"github.com/lib/pq"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -345,10 +346,10 @@ func TestListOrdersByCustomer(t *testing.T) {
         LIMIT $2 OFFSET $3
     `)
 	expectedListItemsSQL := regexp.QuoteMeta(`
-        SELECT id, product_id, quantity, unit_price, created_at
-        FROM order_items
-        WHERE order_id = $1
-    `)
+		SELECT id, order_id, product_id, quantity, unit_price, created_at
+		FROM order_items
+		WHERE order_id = ANY($1)
+	`)
 
 	t.Run("Success - Multiple Orders", func(t *testing.T) {
 		// Mock count query
@@ -360,15 +361,13 @@ func TestListOrdersByCustomer(t *testing.T) {
 			AddRow(expectedOrders[1].ID, expectedOrders[1].Status, expectedOrders[1].TotalAmount, expectedOrders[1].PaymentStatus, expectedOrders[1].PaymentIntentID, addr2JSON, expectedOrders[1].CreatedAt, expectedOrders[1].UpdatedAt)
 		mock.ExpectQuery(expectedListOrdersSQL).WithArgs(customerID, size, offset).WillReturnRows(orderRows)
 
-		// Mock items query for order 1
-		itemRows1 := sqlmock.NewRows([]string{"id", "product_id", "quantity", "unit_price", "created_at"}).
-			AddRow(expectedOrders[0].Items[0].ID, expectedOrders[0].Items[0].ProductID, expectedOrders[0].Items[0].Quantity, expectedOrders[0].Items[0].UnitPrice, expectedOrders[0].Items[0].CreatedAt)
-		mock.ExpectQuery(expectedListItemsSQL).WithArgs(expectedOrders[0].ID).WillReturnRows(itemRows1)
+		// Mock items query for all orders
+		orderIDs := []uuid.UUID{expectedOrders[0].ID, expectedOrders[1].ID}
+		itemRows := sqlmock.NewRows([]string{"id", "order_id", "product_id", "quantity", "unit_price", "created_at"}).
+			AddRow(expectedOrders[0].Items[0].ID, expectedOrders[0].ID, expectedOrders[0].Items[0].ProductID, expectedOrders[0].Items[0].Quantity, expectedOrders[0].Items[0].UnitPrice, expectedOrders[0].Items[0].CreatedAt).
+			AddRow(expectedOrders[1].Items[0].ID, expectedOrders[1].ID, expectedOrders[1].Items[0].ProductID, expectedOrders[1].Items[0].Quantity, expectedOrders[1].Items[0].UnitPrice, expectedOrders[1].Items[0].CreatedAt)
 
-		// Mock items query for order 2
-		itemRows2 := sqlmock.NewRows([]string{"id", "product_id", "quantity", "unit_price", "created_at"}).
-			AddRow(expectedOrders[1].Items[0].ID, expectedOrders[1].Items[0].ProductID, expectedOrders[1].Items[0].Quantity, expectedOrders[1].Items[0].UnitPrice, expectedOrders[1].Items[0].CreatedAt)
-		mock.ExpectQuery(expectedListItemsSQL).WithArgs(expectedOrders[1].ID).WillReturnRows(itemRows2)
+		mock.ExpectQuery(expectedListItemsSQL).WithArgs(pq.Array(orderIDs)).WillReturnRows(itemRows)
 
 		// Act
 		orders, total, err := repo.ListOrdersByCustomer(ctx, customerID, page, size)
@@ -480,15 +479,16 @@ func TestListOrdersByCustomer(t *testing.T) {
 			AddRow(expectedOrders[0].ID, expectedOrders[0].Status, expectedOrders[0].TotalAmount, expectedOrders[0].PaymentStatus, expectedOrders[0].PaymentIntentID, addr1JSON, expectedOrders[0].CreatedAt, expectedOrders[0].UpdatedAt)
 		mock.ExpectQuery(expectedListOrdersSQL).WithArgs(customerID, size, offset).WillReturnRows(orderRows)
 
-		// Mock items query for order 1 (failure)
-		mock.ExpectQuery(expectedListItemsSQL).WithArgs(expectedOrders[0].ID).WillReturnError(dbErr)
+		// Mock items query for all orders (failure)
+		orderIDs := []uuid.UUID{expectedOrders[0].ID}
+		mock.ExpectQuery(expectedListItemsSQL).WithArgs(pq.Array(orderIDs)).WillReturnError(dbErr)
 
 		// Act
 		orders, total, err := repo.ListOrdersByCustomer(ctx, customerID, page, size)
 
 		// Assert
 		require.Error(t, err, "ListOrdersByCustomer should fail on item query error")
-		assert.ErrorContains(t, err, "failed to get the orders", "Error message should indicate item query failure") // Note: Error message could be more specific
+		assert.ErrorContains(t, err, "failed to get the order items", "Error message should indicate item query failure") // Note: Error message could be more specific
 		assert.ErrorIs(t, err, dbErr, "Error should wrap the original DB error")
 		assert.Nil(t, orders, "Orders slice should be nil")
 		assert.Zero(t, total, "Total should be zero")
@@ -503,9 +503,10 @@ func TestListOrdersByCustomer(t *testing.T) {
 			AddRow(expectedOrders[0].ID, expectedOrders[0].Status, expectedOrders[0].TotalAmount, expectedOrders[0].PaymentStatus, expectedOrders[0].PaymentIntentID, addr1JSON, expectedOrders[0].CreatedAt, expectedOrders[0].UpdatedAt)
 		mock.ExpectQuery(expectedListOrdersSQL).WithArgs(customerID, size, offset).WillReturnRows(orderRows)
 
-		// Mock items query for order 1 (scan error)
-		itemRows1 := sqlmock.NewRows([]string{"id", "product_id"}).AddRow(itemID1, "bad_data")
-		mock.ExpectQuery(expectedListItemsSQL).WithArgs(expectedOrders[0].ID).WillReturnRows(itemRows1)
+		// Mock items query for all orders (scan error)
+		orderIDs := []uuid.UUID{expectedOrders[0].ID}
+		itemRows1 := sqlmock.NewRows([]string{"id", "order_id", "product_id"}).AddRow(itemID1, expectedOrders[0].ID, "bad_data")
+		mock.ExpectQuery(expectedListItemsSQL).WithArgs(pq.Array(orderIDs)).WillReturnRows(itemRows1)
 
 		// Act
 		orders, total, err := repo.ListOrdersByCustomer(ctx, customerID, page, size)
@@ -528,10 +529,11 @@ func TestListOrdersByCustomer(t *testing.T) {
 			CloseError(rowsErr) // Simulate error on rows.Err() or rows.Close()
 		mock.ExpectQuery(expectedListOrdersSQL).WithArgs(customerID, size, offset).WillReturnRows(orderRows)
 
-		// Mock items query for order 1 (will likely run before CloseError is checked)
-		itemRows1 := sqlmock.NewRows([]string{"id", "product_id", "quantity", "unit_price", "created_at"}).
-			AddRow(expectedOrders[0].Items[0].ID, expectedOrders[0].Items[0].ProductID, expectedOrders[0].Items[0].Quantity, expectedOrders[0].Items[0].UnitPrice, expectedOrders[0].Items[0].CreatedAt)
-		mock.ExpectQuery(expectedListItemsSQL).WithArgs(expectedOrders[0].ID).WillReturnRows(itemRows1)
+		// Mock items query for all orders (will likely run before CloseError is checked on outer rows, actually it will run if outer rows are processed successfully until Err())
+		orderIDs := []uuid.UUID{expectedOrders[0].ID}
+		itemRows1 := sqlmock.NewRows([]string{"id", "order_id", "product_id", "quantity", "unit_price", "created_at"}).
+			AddRow(expectedOrders[0].Items[0].ID, expectedOrders[0].ID, expectedOrders[0].Items[0].ProductID, expectedOrders[0].Items[0].Quantity, expectedOrders[0].Items[0].UnitPrice, expectedOrders[0].Items[0].CreatedAt)
+		mock.ExpectQuery(expectedListItemsSQL).WithArgs(pq.Array(orderIDs)).WillReturnRows(itemRows1)
 
 		// Act
 		orders, total, err := repo.ListOrdersByCustomer(ctx, customerID, page, size)
