@@ -108,14 +108,18 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 		return nil, errors.DatabaseError("Failed to create order").WithError(err)
 	}
 
+	var updatedProducts []*models.Product
 	for _, item := range cart.Items {
 		if product, exists := productMap[item.ProductID]; exists {
 			product.StockQuantity -= item.Quantity
+			updatedProducts = append(updatedProducts, product)
+		}
+	}
 
-			err = s.productRepo.UpdateProduct(ctx, product)
-			if err != nil {
-				return nil, errors.DatabaseError("Failed to update inventory").WithError(err)
-			}
+	if len(updatedProducts) > 0 {
+		err = s.productRepo.UpdateProducts(ctx, updatedProducts)
+		if err != nil {
+			return nil, errors.DatabaseError("Failed to update inventory").WithError(err)
 		}
 	}
 

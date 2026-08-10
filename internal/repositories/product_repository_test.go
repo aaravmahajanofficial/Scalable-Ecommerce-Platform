@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"database/sql"
+	"context"
 	"errors"
 	"regexp"
 	"testing"
@@ -271,6 +272,53 @@ func TestProductRepository(t *testing.T) {
 			require.Error(t, err, "UpdateProduct should return an error if the product to update is not found")
 			assert.ErrorIs(t, err, sql.ErrNoRows, "Returned error should be sql.ErrNoRows")
 			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	})
+
+	t.Run("UpdateProducts", func(t *testing.T) {
+		ctx := context.Background()
+
+		t.Run("Success", func(t *testing.T) {
+			productID1 := uuid.New()
+			productID2 := uuid.New()
+
+			productsToUpdate := []*models.Product{
+				{ID: productID1, StockQuantity: 8},
+				{ID: productID2, StockQuantity: 4},
+			}
+
+			expectedSQL := `UPDATE products as p SET`
+
+			mock.ExpectExec(expectedSQL).
+				WithArgs(productID1, 8, productID2, 4).
+				WillReturnResult(sqlmock.NewResult(1, 2))
+
+			// Act
+			err := repo.UpdateProducts(ctx, productsToUpdate)
+
+			// Assert
+			require.NoError(t, err, "UpdateProducts should not return an error on success")
+		})
+
+		t.Run("EmptySlice", func(t *testing.T) {
+			// Act
+			err := repo.UpdateProducts(ctx, []*models.Product{})
+
+			// Assert
+			require.NoError(t, err, "UpdateProducts should not return an error when updating empty slice")
+		})
+
+		t.Run("Error", func(t *testing.T) {
+			productsToUpdate := []*models.Product{{ID: uuid.New(), StockQuantity: 8}}
+			dbError := errors.New("database update error")
+			mock.ExpectExec(`UPDATE products as p SET`).WillReturnError(dbError)
+
+			// Act
+			err := repo.UpdateProducts(ctx, productsToUpdate)
+
+			// Assert
+			require.Error(t, err)
+			assert.ErrorIs(t, err, dbError)
 		})
 	})
 

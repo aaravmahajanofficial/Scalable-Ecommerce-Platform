@@ -301,3 +301,21 @@ func (_c *MockProductRepository_UpdateProduct_Call) RunAndReturn(run func(ctx co
 	_c.Call.Return(run)
 	return _c
 }
+
+// UpdateProducts provides a mock function with given fields: ctx, products
+func (_m *MockProductRepository) UpdateProducts(ctx context.Context, products []*models.Product) error {
+	ret := _m.Called(ctx, products)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateProducts")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, []*models.Product) error); ok {
+		r0 = rf(ctx, products)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
