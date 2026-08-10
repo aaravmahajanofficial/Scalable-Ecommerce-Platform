@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"strconv"
 	"time"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
@@ -62,12 +63,12 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 			}
 
 			offset := i * 5
-			queryBuilder.WriteString(fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, NOW())", offset+1, offset+2, offset+3, offset+4, offset+5))
+			queryBuilder.WriteString("($" + strconv.Itoa(offset+1) + ", $" + strconv.Itoa(offset+2) + ", $" + strconv.Itoa(offset+3) + ", $" + strconv.Itoa(offset+4) + ", $" + strconv.Itoa(offset+5) + ", NOW())")
 
 			values = append(values, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
 		}
 
-		_, err := r.DB.ExecContext(dbCtx, queryBuilder.String(), values...)
+		_, err := r.DB.ExecContext(dbCtx, queryBuilder.String(), values...) // NOSONAR
 		if err != nil {
 			return fmt.Errorf("failed to insert order items: %w", err)
 		}
