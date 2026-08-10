@@ -93,83 +93,30 @@ func initTracer(cfg *config.Config) (func(ctx context.Context) error, error) {
 	}, nil
 }
 
-func main() {
-	// Logger setup
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
-	// Load config
-	cfg := config.MustLoad()
-
-	tracerShutdown, err := initTracer(cfg)
-	if err != nil {
-		slog.Error("❌ Failed to initialize OpenTelemetry Tracer", "error", err.Error())
-		os.Exit(1)
-	}
-
-	defer func() {
-		slog.Info("Shutting down tracer...")
-
-		if err := tracerShutdown(context.Background()); err != nil {
-			slog.Error("⚠️ Error shutting down tracer", "error", err)
-		} else {
-			slog.Info("✅ Tracer shut down successfully.")
-		}
-	}()
-
-	// Swagger setup
-	swaggerHost := cfg.HTTPServer.Addr
-	if swaggerHost == "" {
-		swaggerHost = "local:8085"
-		slog.Warn("Server address not found in config (cfg.Addr), defaulting Swagger host to " + swaggerHost)
-	}
-
-	// --- Redis Client Initialization ---
+func initRepositories(cfg *config.Config) (*repository.Repositories, error) {
 	redisClient, err := repository.NewRedisClient(cfg)
 	if err != nil {
-		slog.Error("❌ Failed to initialize Redis client", "error", err.Error())
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to initialize Redis client: %w", err)
 	}
-	// Defer closing the Redis client connection
-	defer func() {
-		slog.Info("Closing Redis connection...")
 
-		if err := redisClient.Close(); err != nil {
-			slog.Error("⚠️ Error closing Redis connection", slog.String("error", err.Error()))
-		} else {
-			slog.Info("✅ Redis connection closed")
-		}
-	}()
-
-	// --- Cache Initialization ---
 	redisCache := cache.NewRedisCache(redisClient, &cfg.Cache)
 	slog.Info("Cache Initialized", slog.String("type", "redis"), slog.String("defaultTTL", cfg.Cache.DefaultTTL.String()))
 
-	// --- Rate Limiter Initialization ---
 	rateLimiter := repository.NewRateLimitRepo(redisClient, cfg)
-
 	slog.Info("Rate Limiter Initialized", slog.String("type", "redis"))
 
-	// --- Database and Repositories Initialization ---
 	repos, err := repository.New(cfg, redisClient, redisCache, rateLimiter)
 	if err != nil {
-		slog.Error("❌ Error initializing repositories", "error", err.Error())
-		os.Exit(1)
+		// Close redis client if repo init fails since we opened it here
+		redisClient.Close()
+		return nil, fmt.Errorf("failed to initialize repositories: %w", err)
 	}
-	// Defer closing the DB connection
-	defer func() {
-		slog.Info("Closing repository connections (DB, Redis)...")
 
-		if err := repos.Close(); err != nil {
-			slog.Error("⚠️ Error closing repository connections", slog.String("error", err.Error()))
-		} else {
-			slog.Info("✅ Repository connections closed")
-		}
-	}()
+	return repos, nil
+}
 
+func setupRouter(cfg *config.Config, repos *repository.Repositories, stripeClient stripe.Client, sendGridClient sendgrid.EmailService, swaggerHost string) (*http.ServeMux, error) {
 	jwtKey := []byte(cfg.Security.JWTKey)
-	stripeClient := stripe.NewStripeClient(cfg.Stripe.APIKey, cfg.Stripe.WebhookSecret)
-	sendGridClient := sendgrid.NewEmailService(cfg.SendGrid.APIKey, cfg.SendGrid.FromEmail, cfg.SendGrid.FromName)
 
 	// Service Init
 	userService := service.NewUserService(repos.User, repos.RateLimiter, jwtKey)
@@ -200,8 +147,7 @@ func main() {
 
 	readinessHandler, err := health.NewReadinessHandler(cfg, healthEndpoints)
 	if err != nil {
-		slog.Error("❌ Failed to initialize readiness checker", "error", err.Error())
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to initialize readiness checker: %w", err)
 	}
 
 	livenessHandler := health.NewLivenessHandler()
@@ -258,6 +204,66 @@ func main() {
 	apiHandler = otelhttp.NewHandler(apiHandler, cfg.OTel.ServiceName) //  Wraps actual business logic
 
 	mainMux.Handle("/api/v1/", apiHandler)
+
+	return mainMux, nil
+}
+
+func main() {
+	// Logger setup
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
+
+	// Load config
+	cfg := config.MustLoad()
+
+	tracerShutdown, err := initTracer(cfg)
+	if err != nil {
+		slog.Error("❌ Failed to initialize OpenTelemetry Tracer", "error", err.Error())
+		os.Exit(1)
+	}
+
+	defer func() {
+		slog.Info("Shutting down tracer...")
+
+		if err := tracerShutdown(context.Background()); err != nil {
+			slog.Error("⚠️ Error shutting down tracer", "error", err)
+		} else {
+			slog.Info("✅ Tracer shut down successfully.")
+		}
+	}()
+
+	// Swagger setup
+	swaggerHost := cfg.HTTPServer.Addr
+	if swaggerHost == "" {
+		swaggerHost = "local:8085"
+		slog.Warn("Server address not found in config (cfg.Addr), defaulting Swagger host to " + swaggerHost)
+	}
+
+	// --- Repository Initialization ---
+	repos, err := initRepositories(cfg)
+	if err != nil {
+		slog.Error("❌ Error initializing repositories", "error", err.Error())
+		os.Exit(1)
+	}
+	// Defer closing the DB and Redis connections
+	defer func() {
+		slog.Info("Closing repository connections (DB, Redis)...")
+
+		if err := repos.Close(); err != nil {
+			slog.Error("⚠️ Error closing repository connections", slog.String("error", err.Error()))
+		} else {
+			slog.Info("✅ Repository connections closed")
+		}
+	}()
+
+	stripeClient := stripe.NewStripeClient(cfg.Stripe.APIKey, cfg.Stripe.WebhookSecret)
+	sendGridClient := sendgrid.NewEmailService(cfg.SendGrid.APIKey, cfg.SendGrid.FromEmail, cfg.SendGrid.FromName)
+
+	mainMux, err := setupRouter(cfg, repos, stripeClient, sendGridClient, swaggerHost)
+	if err != nil {
+		slog.Error("❌ Error setting up router", "error", err.Error())
+		os.Exit(1)
+	}
 
 	// Setup http server
 	server := http.Server{
