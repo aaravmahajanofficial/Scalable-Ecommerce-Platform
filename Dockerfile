@@ -6,7 +6,7 @@ WORKDIR /go/src/app
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY ./cmd/scalable-ecommerce-platform ./cmd/scalable-ecommerce-platform
+COPY ./cmd ./cmd
 COPY ./internal ./internal
 COPY ./pkg ./pkg
 COPY ./docs ./docs

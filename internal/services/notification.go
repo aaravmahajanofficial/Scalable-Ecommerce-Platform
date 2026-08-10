@@ -80,7 +80,7 @@ func (s *notificationService) SendEmail(ctx context.Context, req *models.EmailNo
 	notification.Status = models.StatusSent
 
 	if err := s.repo.UpdateNotificationStatus(ctx, notification.ID, models.StatusSent, ""); err != nil {
-		return nil, errors.DatabaseError("Failed to update notification status").WithError(err)
+		return nil, errors.DatabaseError("failed to update notification status").WithError(err)
 	}
 
 	return &models.NotificationResponse{
