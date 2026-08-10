@@ -138,7 +138,7 @@ func (r *productRepository) UpdateProducts(ctx context.Context, products []*mode
 		values = append(values, product.ID, product.StockQuantity)
 	}
 
-	// #nosec G201
+	// #nosec G202
 	query += fmt.Sprintf("%s\n) as c(id, stock_quantity)\nWHERE p.id = c.id;", strings.Join(queryArgs, ","))
 
 	_, err := r.DB.ExecContext(dbCtx, query, values...)
