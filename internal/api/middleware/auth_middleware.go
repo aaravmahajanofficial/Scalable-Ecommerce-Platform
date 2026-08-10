@@ -53,44 +53,9 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.HandlerFunc {
 
 		tokenString := tokenParts[1]
 
-		// Stores the decoded information
-		claims := &models.Claims{}
-
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
-			// check the signing method
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok || t.Header["alg"] != jwt.SigningMethodHS256.Alg() {
-				logger.Error("Unexpected signing method used in JWT", slog.Any("alg", t.Header["alg"]))
-
-				return nil, appErrors.BadRequestError("unexpected signing method")
-			}
-
-			return m.jwtKey, nil
-		})
+		claims, err := m.parseAndValidateToken(tokenString, logger)
 		if err != nil {
-			logger.Warn("JWT parsing failed", slog.String("error", err.Error()))
-
-			var appErr *appErrors.AppError
-			if errors.As(err, &appErr) && appErr.Code == appErrors.ErrCodeBadRequest {
-				response.Error(w, appErr) // Respond with the specific bad request error
-			} else {
-				// Handle other parsing errors (expired, malformed, invalid signature) as Unauthorized
-				response.Error(w, appErrors.UnauthorizedError("Invalid or expired token"))
-			}
-
-			return
-		}
-
-		if !token.Valid {
-			logger.Warn("Invalid token")
-			response.Error(w, appErrors.UnauthorizedError("Invalid token"))
-
-			return
-		}
-
-		if claims.ExpiresAt != nil && claims.ExpiresAt.Time.Before(time.Now()) {
-			logger.Warn("Expired token", slog.String("userId", claims.UserID.String()))
-			response.Error(w, appErrors.UnauthorizedError("Token expired"))
-
+			response.Error(w, err)
 			return
 		}
 
@@ -105,4 +70,43 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.HandlerFunc {
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+func (m *AuthMiddleware) parseAndValidateToken(tokenString string, logger *slog.Logger) (*models.Claims, error) {
+	// Stores the decoded information
+	claims := &models.Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
+		// check the signing method
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok || t.Header["alg"] != jwt.SigningMethodHS256.Alg() {
+			logger.Error("Unexpected signing method used in JWT", slog.Any("alg", t.Header["alg"]))
+
+			return nil, appErrors.BadRequestError("unexpected signing method")
+		}
+
+		return m.jwtKey, nil
+	})
+	if err != nil {
+		logger.Warn("JWT parsing failed", slog.String("error", err.Error()))
+
+		var appErr *appErrors.AppError
+		if errors.As(err, &appErr) && appErr.Code == appErrors.ErrCodeBadRequest {
+			return nil, appErr
+		}
+
+		// Handle other parsing errors (expired, malformed, invalid signature) as Unauthorized
+		return nil, appErrors.UnauthorizedError("Invalid or expired token")
+	}
+
+	if !token.Valid {
+		logger.Warn("Invalid token")
+		return nil, appErrors.UnauthorizedError("Invalid token")
+	}
+
+	if claims.ExpiresAt != nil && claims.ExpiresAt.Time.Before(time.Now()) {
+		logger.Warn("Expired token", slog.String("userId", claims.UserID.String()))
+		return nil, appErrors.UnauthorizedError("Token expired")
+	}
+
+	return claims, nil
 }
