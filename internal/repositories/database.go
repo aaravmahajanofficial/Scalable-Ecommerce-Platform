@@ -8,7 +8,7 @@ import (
 	"github.com/XSAM/otelsql"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/cache"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/config"
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // postgres driver
 	"github.com/redis/go-redis/v9"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 )
