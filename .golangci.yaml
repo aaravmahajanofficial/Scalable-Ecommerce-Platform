@@ -17,6 +17,7 @@ linters:
     - nilnil
     - gofmt
     - goimports
+    - gocritic
 
   settings:
     exhaustruct:
@@ -76,7 +77,7 @@ issues:
 
 output:
   formats:
-    - format: colored-line-number
+    colored-line-number:
       path: stdout
 
   sort-results: true
