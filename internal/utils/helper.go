@@ -56,11 +56,11 @@ func ValidateStruct(ctx context.Context, validate *validator.Validate, data any)
 			}
 
 			return errors.ValidationError("Validation Failed").WithDetail(fmt.Sprintf("%v", details))
-		} else {
-			logger.Error("Unexpected validation error", slog.String("error", err.Error()))
-
-			return errors.InternalError("Unexpected validation error").WithError(err)
 		}
+
+		logger.Error("Unexpected validation error", slog.String("error", err.Error()))
+
+		return errors.InternalError("Unexpected validation error").WithError(err)
 	}
 
 	return nil
