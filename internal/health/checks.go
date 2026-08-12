@@ -18,13 +18,13 @@ import (
 	"github.com/stripe/stripe-go/v81/balance"
 )
 
-type HealthEndpoint struct {
+type Endpoint struct {
 	DB           *sql.DB
 	RedisClient  *redis.Client
 	StripeClient *stripeClient.Client
 }
 
-func NewReadinessHandler(cfg *config.Config, healthEndpoint *HealthEndpoint) (http.Handler, error) {
+func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Handler, error) {
 	h, err := health.New(
 
 		health.WithComponent(health.Component{
