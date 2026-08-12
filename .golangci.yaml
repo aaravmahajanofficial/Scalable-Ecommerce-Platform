@@ -15,8 +15,6 @@ linters:
     - gosec
     - unused
     - nilnil
-    - gofmt
-    - goimports
     - gocritic
 
   settings:
@@ -70,6 +68,11 @@ linters:
         linters:
           - gosec
           - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 issues:
   max-issues-per-linter: 50
