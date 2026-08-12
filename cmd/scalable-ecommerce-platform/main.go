@@ -192,7 +192,7 @@ func main() {
 
 	slog.Info("Storage Initialized", slog.String("env", cfg.Env), slog.String("version", "1.0.0"))
 
-	healthEndpoints := &health.HealthEndpoint{
+	healthEndpoints := &health.Endpoint{
 		DB:           repos.DB,
 		RedisClient:  repos.RedisClient,
 		StripeClient: &stripeClient,
