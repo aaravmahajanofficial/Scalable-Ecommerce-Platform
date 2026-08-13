@@ -112,7 +112,7 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to get the order items: %w", err)
 	}
 
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var items []models.OrderItem
 
@@ -140,7 +140,7 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 	2.
 
 */
-func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID, page int, size int) ([]models.Order, int, error) {
+func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID, page, size int) ([]models.Order, int, error) {
 	dbCtx, cancel := utils.WithDBTimeout(ctx)
 	defer cancel()
 
@@ -170,7 +170,7 @@ func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID u
 		return nil, 0, fmt.Errorf("failed to list orders: %w", err)
 	}
 
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var orders []models.Order
 

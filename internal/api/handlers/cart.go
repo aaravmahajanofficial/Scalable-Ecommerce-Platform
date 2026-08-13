@@ -18,9 +18,9 @@ type CartHandler struct {
 	validator   *validator.Validate
 }
 
-func NewCartHandler(service service.CartService) *CartHandler {
+func NewCartHandler(cartSvc service.CartService) *CartHandler {
 	return &CartHandler{
-		cartService: service,
+		cartService: cartSvc,
 		validator:   validator.New(),
 	}
 }
