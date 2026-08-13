@@ -131,7 +131,7 @@ func (s *orderService) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.
 	return order, nil
 }
 
-func (s *orderService) ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID, page int, size int) ([]models.Order, int, error) {
+func (s *orderService) ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID, page, size int) ([]models.Order, int, error) {
 	if page < 1 {
 		page = 1
 	}
