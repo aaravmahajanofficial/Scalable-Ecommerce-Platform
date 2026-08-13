@@ -1,3 +1,4 @@
+// Package utils provides shared helpers.
 package utils
 
 import (
@@ -18,6 +19,11 @@ import (
 
 func DecodeJSONBody(r *http.Request, dest any) error {
 	logger := middleware.LoggerFromContext(r.Context())
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			logger.Error("Failed to close request body", slog.Any("error", err))
+		}
+	}()
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -25,8 +31,6 @@ func DecodeJSONBody(r *http.Request, dest any) error {
 
 		return errors.BadRequestError("Failed to read request body").WithError(err)
 	}
-
-	defer r.Body.Close()
 
 	if len(body) == 0 {
 		logger.Warn("Empty request body received")
