@@ -1,9 +1,11 @@
+// Package repository provides data access.
 package repository
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 
 	"github.com/XSAM/otelsql"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/cache"
@@ -12,6 +14,12 @@ import (
 	"github.com/redis/go-redis/v9"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 )
+
+func closeRows(rows *sql.Rows) {
+	if err := rows.Close(); err != nil {
+		slog.Error("failed to close query rows", slog.Any("error", err))
+	}
+}
 
 type Repositories struct {
 	DB           *sql.DB
