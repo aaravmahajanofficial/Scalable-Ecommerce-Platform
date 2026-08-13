@@ -1,3 +1,4 @@
+// Package response provides HTTP response utilities.
 package response
 
 import (
@@ -20,7 +21,7 @@ type ErrorResponse struct {
 	Details []string `json:"details,omitempty"`
 }
 
-// interface {} == any.
+// WriteJSON writes a JSON response.
 func WriteJSON(w http.ResponseWriter, statusCode int, data any) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
