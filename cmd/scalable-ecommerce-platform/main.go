@@ -104,7 +104,7 @@ func main() {
 	tracerShutdown, err := initTracer(cfg)
 	if err != nil {
 		slog.Error("❌ Failed to initialize OpenTelemetry Tracer", "error", err.Error())
-		os.Exit(1)
+		panic(err)
 	}
 
 	defer func() {
@@ -128,7 +128,7 @@ func main() {
 	redisClient, err := repository.NewRedisClient(cfg)
 	if err != nil {
 		slog.Error("❌ Failed to initialize Redis client", "error", err.Error())
-		os.Exit(1)
+		panic(err)
 	}
 	// Defer closing the Redis client connection
 	defer func() {
@@ -154,7 +154,7 @@ func main() {
 	repos, err := repository.New(cfg, redisClient, redisCache, rateLimiter)
 	if err != nil {
 		slog.Error("❌ Error initializing repositories", "error", err.Error())
-		os.Exit(1)
+		panic(err)
 	}
 	// Defer closing the DB connection
 	defer func() {
@@ -201,7 +201,7 @@ func main() {
 	readinessHandler, err := health.NewReadinessHandler(cfg, healthEndpoints)
 	if err != nil {
 		slog.Error("❌ Failed to initialize readiness checker", "error", err.Error())
-		os.Exit(1)
+		panic(err)
 	}
 
 	livenessHandler := health.NewLivenessHandler()

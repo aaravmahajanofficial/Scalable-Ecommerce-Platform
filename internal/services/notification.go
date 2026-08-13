@@ -103,7 +103,7 @@ func (s *notificationService) GetNotification(ctx context.Context, id uuid.UUID)
 }
 
 // ListNotifications implements NotificationService.
-func (s *notificationService) ListNotifications(ctx context.Context, page int, size int) ([]*models.Notification, int, error) {
+func (s *notificationService) ListNotifications(ctx context.Context, page, size int) ([]*models.Notification, int, error) {
 	if page < 1 {
 		page = 1
 	}

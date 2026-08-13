@@ -94,7 +94,7 @@ func (r *notificationRepository) UpdateNotificationStatus(ctx context.Context, i
 	return nil
 }
 
-func (r *notificationRepository) ListNotifications(ctx context.Context, page int, size int) ([]*models.Notification, int, error) {
+func (r *notificationRepository) ListNotifications(ctx context.Context, page, size int) ([]*models.Notification, int, error) {
 	dbCtx, cancel := utils.WithDBTimeout(ctx)
 	defer cancel()
 
@@ -121,7 +121,7 @@ func (r *notificationRepository) ListNotifications(ctx context.Context, page int
 		return nil, 0, fmt.Errorf("failed to query notifications: %w", err)
 	}
 
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	notifications := []*models.Notification{}
 

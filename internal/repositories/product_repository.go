@@ -85,7 +85,7 @@ func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUI
 	if err != nil {
 		return nil, fmt.Errorf("querying database for products by ids: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var products []*models.Product
 	for rows.Next() {
@@ -145,7 +145,7 @@ func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([
 		return nil, 0, err
 	}
 
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var products []*models.Product
 

@@ -87,7 +87,7 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.HandlerFunc {
 			return
 		}
 
-		if claims.ExpiresAt != nil && claims.ExpiresAt.Time.Before(time.Now()) {
+		if claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
 			logger.Warn("Expired token", slog.String("userId", claims.UserID.String()))
 			response.Error(w, appErrors.UnauthorizedError("Token expired"))
 

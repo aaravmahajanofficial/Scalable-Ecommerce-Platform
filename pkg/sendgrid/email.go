@@ -21,7 +21,7 @@ type emailService struct {
 	fromName  string
 }
 
-func NewEmailService(apiKey string, fromEmail string, fromName string) EmailService {
+func NewEmailService(apiKey, fromEmail, fromName string) EmailService {
 	return &emailService{client: sendgrid.NewSendClient(apiKey), fromEmail: fromEmail, fromName: fromName}
 }
 
