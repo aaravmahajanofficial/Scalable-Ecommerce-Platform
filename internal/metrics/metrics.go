@@ -1,3 +1,4 @@
+// Package metrics provides Prometheus HTTP metrics.
 package metrics
 
 import (

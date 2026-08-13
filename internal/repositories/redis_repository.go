@@ -58,7 +58,7 @@ func NewRateLimitRepo(client *redis.Client, cfg *config.Config) RateLimitReposit
 }
 
 // Returns isAllowed, attempts left, seconds to wait, error.
-func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username string) (allowed bool, remaining int, resetIn int, err error) {
+func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username string) (allowed bool, remaining, resetIn int, err error) {
 	logger := middleware.LoggerFromContext(ctx)
 
 	// create a username key

@@ -117,7 +117,7 @@ func (r *paymentRepository) ListPaymentsOfCustomer(ctx context.Context, customer
 		return nil, 0, fmt.Errorf("failed to list the payments: %w", err)
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer closeRows(rows)
 
 	var payments []*models.Payment
 

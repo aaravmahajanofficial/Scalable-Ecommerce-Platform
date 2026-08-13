@@ -1,3 +1,4 @@
+// Package sendgrid sends email via SendGrid.
 package sendgrid
 
 import (

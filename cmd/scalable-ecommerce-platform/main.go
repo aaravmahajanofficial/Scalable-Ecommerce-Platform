@@ -1,3 +1,4 @@
+// Package main is the scalable ecommerce platform entry point.
 package main
 
 import (

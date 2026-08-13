@@ -1,3 +1,4 @@
+// Package stripe wraps the Stripe API.
 package stripe
 
 import (

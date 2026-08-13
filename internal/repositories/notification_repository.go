@@ -121,7 +121,7 @@ func (r *notificationRepository) ListNotifications(ctx context.Context, page, si
 		return nil, 0, fmt.Errorf("failed to query notifications: %w", err)
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer closeRows(rows)
 
 	notifications := []*models.Notification{}
 

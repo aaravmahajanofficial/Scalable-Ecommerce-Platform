@@ -1,3 +1,4 @@
+// Package testutils provides HTTP test helpers.
 package testutils
 
 import (

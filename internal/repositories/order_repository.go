@@ -111,7 +111,7 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to get the order items: %w", err)
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer closeRows(rows)
 
 	var items []models.OrderItem
 
@@ -169,7 +169,7 @@ func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID u
 		return nil, 0, fmt.Errorf("failed to list orders: %w", err)
 	}
 
-	defer func() { _ = rows.Close() }()
+	defer closeRows(rows)
 
 	var orders []models.Order
 
