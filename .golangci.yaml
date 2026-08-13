@@ -30,7 +30,6 @@ linters:
     staticcheck:
       checks:
         - all
-        - "-SA1019"
 
     gocyclo:
       min-complexity: 20
@@ -49,8 +48,6 @@ linters:
         - diagnostic
         - style
         - performance
-      disabled-checks:
-        - commentFormatting
 
   exclusions:
     paths:
@@ -75,8 +72,8 @@ formatters:
     - goimports
 
 issues:
-  max-issues-per-linter: 50
-  max-same-issues: 10
+  max-issues-per-linter: 0
+  max-same-issues: 0
 
 output:
   formats:
