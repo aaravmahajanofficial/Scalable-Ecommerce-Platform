@@ -1,3 +1,4 @@
+// Package cache provides Redis-backed caching.
 package cache
 
 import (
@@ -78,7 +79,7 @@ func (r *redisCache) Close() error {
 	return nil
 }
 
-func Key(prefix string, id string) string {
+func Key(prefix, id string) string {
 	return prefix + ":" + id
 }
 
