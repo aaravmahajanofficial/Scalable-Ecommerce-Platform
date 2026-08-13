@@ -1,3 +1,4 @@
+// Package metrics provides Prometheus HTTP metrics.
 package metrics
 
 import (
@@ -92,7 +93,7 @@ func Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// http.Handler for the Prometheus /metrics endpoint.
+// Handler returns the http.Handler for the Prometheus /metrics endpoint.
 func Handler() http.Handler {
 	return promhttp.Handler()
 }

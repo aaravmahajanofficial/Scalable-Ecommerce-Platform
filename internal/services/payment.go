@@ -37,7 +37,6 @@ func (s *paymentService) CreatePayment(ctx context.Context, req *models.PaymentR
 
 	// create a payment method & attach it to paymentIntent
 	if req.PaymentMethod == "card" {
-		// paymentMethod, err := p.stripeClient.CreatePaymentMethod(req.CardNumber, fmt.Sprintf("%d", req.CardExpMonth), fmt.Sprintf("%d", req.CardExpYear), req.CardCVC)
 		paymentMethod, err := s.stripeClient.CreatePaymentMethodFromToken(req.Token)
 		if err != nil {
 			return nil, errors.ThirdPartyError("Failed to create payment method").WithError(err)
