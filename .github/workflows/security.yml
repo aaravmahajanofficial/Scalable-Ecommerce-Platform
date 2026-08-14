@@ -23,7 +23,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: 1.26.5
+          go-version: 1.26.6
           cache: true
 
       - name: Run Gosec
@@ -48,11 +48,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: 1.26.5
+          go-version: 1.26.6
           cache: true
 
       - name: Run govulncheck
         uses: golang/govulncheck-action@v1
         with:
-          go-version-input: "1.26.5"
+          go-version-input: 1.26.6
           go-package: ./...
