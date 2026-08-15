@@ -7,7 +7,7 @@ package mocks
 import (
 	stripe0 "github.com/aaravmahajanofficial/scalable-ecommerce-platform/pkg/stripe"
 	mock "github.com/stretchr/testify/mock"
-	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v86"
 )
 
 // NewMockClient creates a new instance of MockClient. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
