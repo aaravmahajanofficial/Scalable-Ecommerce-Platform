@@ -16,8 +16,8 @@ import (
 	"github.com/hellofresh/health-go/v5/checks/postgres"
 	healthRedis "github.com/hellofresh/health-go/v5/checks/redis"
 	"github.com/redis/go-redis/v9"
-	"github.com/stripe/stripe-go/v81"
-	"github.com/stripe/stripe-go/v81/balance"
+	"github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86/balance"
 )
 
 type Endpoint struct {
