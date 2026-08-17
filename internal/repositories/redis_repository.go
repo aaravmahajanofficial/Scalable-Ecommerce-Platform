@@ -61,7 +61,7 @@ func NewRateLimitRepo(client *redis.Client, cfg *config.Config) RateLimitReposit
 }
 
 // Returns isAllowed, attempts left, seconds to wait, error.
-func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username string) (bool, int, int, error) {
+func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username string) (allowed bool, remaining, resetIn int, err error) {
 	logger := middleware.LoggerFromContext(ctx)
 
 	// create a username key
@@ -88,7 +88,7 @@ func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username stri
 	pipe.Expire(ctx, key, r.cfg.RateConfig.WindowSize)
 
 	// execute the commands
-	_, err := pipe.Exec(ctx)
+	_, err = pipe.Exec(ctx)
 	if err != nil {
 		logger.Error("Redis pipeline execution failed for rate limit", slog.String("key", key), slog.Any("error", err))
 
@@ -97,7 +97,7 @@ func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username stri
 
 	// remaining attempts
 	attempts := count.Val()
-	remaining := r.cfg.RateConfig.MaxAttempts - attempts
+	remaining = int(r.cfg.RateConfig.MaxAttempts - attempts)
 
 	if attempts >= r.cfg.RateConfig.MaxAttempts {
 		oldestScoreCmd := r.client.ZRangeArgsWithScores(ctx, redis.ZRangeArgs{
@@ -120,7 +120,7 @@ func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username stri
 		return false, 0, int(retryAfter), nil
 	}
 
-	logger.Debug("Rate limit check passed", slog.String("username", username), slog.Int64("attempts", attempts), slog.Int64("remaining", remaining))
+	logger.Debug("Rate limit check passed", slog.String("username", username), slog.Int64("attempts", attempts), slog.Int64("remaining", int64(remaining)))
 
 	return true, int(remaining), 0, nil
 }
