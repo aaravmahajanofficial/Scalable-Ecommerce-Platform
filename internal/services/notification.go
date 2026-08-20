@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
+	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	repository "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/pkg/sendgrid"
@@ -33,7 +33,7 @@ func NewNotificationService(repo repository.NotificationRepository, userRepo rep
 func (s *notificationService) SendEmail(ctx context.Context, req *models.EmailNotificationRequest) (*models.NotificationResponse, error) {
 	_, err := s.userRepo.GetUserByEmail(ctx, req.To)
 	if err != nil {
-		return nil, errors.NotFoundError("User not found").WithError(err)
+		return nil, apperrors.NotFoundError("User not found").WithError(err)
 	}
 
 	var metadataJSON json.RawMessage
@@ -41,7 +41,7 @@ func (s *notificationService) SendEmail(ctx context.Context, req *models.EmailNo
 	if req.Metadata != nil {
 		metadataBytes, err := json.Marshal(req.Metadata)
 		if err != nil {
-			return nil, errors.InternalError("Failed to marshal metadata").WithError(err)
+			return nil, apperrors.InternalError("Failed to marshal metadata").WithError(err)
 		}
 
 		metadataJSON = metadataBytes
@@ -61,7 +61,7 @@ func (s *notificationService) SendEmail(ctx context.Context, req *models.EmailNo
 
 	// Save to the database
 	if err := s.repo.CreateNotification(ctx, notification); err != nil {
-		return nil, errors.DatabaseError("Failed to create notification").WithError(err)
+		return nil, apperrors.DatabaseError("Failed to create notification").WithError(err)
 	}
 
 	err = s.emailService.Send(ctx, req)
@@ -73,14 +73,14 @@ func (s *notificationService) SendEmail(ctx context.Context, req *models.EmailNo
 			return nil, fmt.Errorf("failed to update notification status after send failure: %w", updateErr)
 		}
 
-		return nil, errors.ThirdPartyError("Failed to send notification").WithError(err)
+		return nil, apperrors.ThirdPartyError("Failed to send notification").WithError(err)
 	}
 
 	// Update the notification status if sent successfully
 	notification.Status = models.StatusSent
 
 	if err := s.repo.UpdateNotificationStatus(ctx, notification.ID, models.StatusSent, ""); err != nil {
-		return nil, errors.DatabaseError("Failed to update notification status").WithError(err)
+		return nil, apperrors.DatabaseError("Failed to update notification status").WithError(err)
 	}
 
 	return &models.NotificationResponse{
@@ -96,7 +96,7 @@ func (s *notificationService) SendEmail(ctx context.Context, req *models.EmailNo
 func (s *notificationService) GetNotification(ctx context.Context, id uuid.UUID) (*models.Notification, error) {
 	notification, err := s.repo.GetNotificationByID(ctx, id)
 	if err != nil {
-		return nil, errors.NotFoundError("Notification not found").WithError(err)
+		return nil, apperrors.NotFoundError("Notification not found").WithError(err)
 	}
 
 	return notification, err
@@ -114,7 +114,7 @@ func (s *notificationService) ListNotifications(ctx context.Context, page, size 
 
 	notifications, total, err := s.repo.ListNotifications(ctx, page, size)
 	if err != nil {
-		return nil, 0, errors.DatabaseError("Failed to fetch notifications").WithError(err)
+		return nil, 0, apperrors.DatabaseError("Failed to fetch notifications").WithError(err)
 	}
 
 	return notifications, total, nil

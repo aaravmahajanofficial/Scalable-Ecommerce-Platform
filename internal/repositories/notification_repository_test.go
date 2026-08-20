@@ -24,7 +24,9 @@ func setupNotificationRepoTest(t *testing.T) (repository.NotificationRepository,
 	require.NoError(t, err, "Failed to create sqlmock")
 
 	t.Cleanup(func() {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
 	})
 
 	repo := repository.NewNotificationRepo(db)
@@ -36,7 +38,11 @@ func setupNotificationRepoTest(t *testing.T) (repository.NotificationRepository,
 func TestNewNotificationRepo(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
+	})
 
 	repo := repository.NewNotificationRepo(db)
 	assert.NotNil(t, repo, "NewNotificationRepo should return a non-nil repository")

@@ -119,7 +119,7 @@ func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username stri
 
 	logger.Debug("Rate limit check passed", slog.String("username", username), slog.Int64("attempts", attempts), slog.Int64("remaining", int64(remaining)))
 
-	return true, int(remaining), 0, nil
+	return true, remaining, 0, nil
 }
 
 // login attempts stored in redis
