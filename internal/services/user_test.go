@@ -166,7 +166,7 @@ func TestUserService_Login(t *testing.T) {
 		// ✅ can be parsed without errors
 
 		// actual token, where the token be decoded, server/secret-key
-		token, err := jwt.ParseWithClaims(resp.Token, &models.Claims{}, func(_ *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(resp.Token, &models.Claims{}, func(_ *jwt.Token) (any, error) {
 			return jwtKey, nil
 		})
 		assert.NoError(t, err)

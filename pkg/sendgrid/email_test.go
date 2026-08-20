@@ -17,15 +17,11 @@ import (
 )
 
 func TestNewEmailService(t *testing.T) {
-	// Arrange
 	apiKey := "test-api-key"
 	fromEmail := "sender@example.com"
 	fromName := "Test Sender"
 
-	// Act
 	service := sendgrid_client.NewEmailService(apiKey, fromEmail, fromName)
-
-	// Assert
 	assert.NotNil(t, service)
 }
 
@@ -43,47 +39,42 @@ type sendgridV3Payload struct {
 	} `json:"content"`
 }
 
+func createMockSendGridServer(t *testing.T, handler http.HandlerFunc, lastPayload *sendgridV3Payload) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read request body", http.StatusInternalServerError)
+			return
+		}
+
+		defer func() {
+			if closeErr := r.Body.Close(); closeErr != nil {
+				t.Logf("failed to close request body: %v", closeErr)
+			}
+		}()
+
+		if unmarshalErr := json.Unmarshal(bodyBytes, lastPayload); unmarshalErr != nil {
+			http.Error(w, "Failed to unmarshal request body", http.StatusBadRequest)
+			return
+		}
+
+		handler(w, r)
+	}))
+}
+
 func TestEmailService_Send(t *testing.T) {
 	apiKey := "SG.test-api-key"
 	fromEmail := "from@example.com"
 	fromName := "Test Sender"
 	ctx := t.Context()
 
-	var mockServer *httptest.Server
-
-	var lastRequestPayload sendgridV3Payload
-
-	var handlerFunc http.HandlerFunc
-
-	// startMockServer sets up and starts the httptest server with the current handlerFunc.
-	startMockServer := func() {
-		mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			bodyBytes, err := io.ReadAll(r.Body)
-			if err != nil {
-				http.Error(w, "Failed to read request body", http.StatusInternalServerError)
-
-				return
-			}
-
-			defer r.Body.Close()
-
-			err = json.Unmarshal(bodyBytes, &lastRequestPayload)
-			if err != nil {
-				http.Error(w, "Failed to unmarshal request body", http.StatusBadRequest)
-
-				return
-			}
-
-			handlerFunc(w, r)
-		}))
-	}
-
 	tests := []struct {
 		name          string
 		req           *models.EmailNotificationRequest
-		handler       http.HandlerFunc                              // Mock server handler for this specific test
-		expectedError string                                        // Substring expected in the error message, empty for no error
-		checkPayload  func(t *testing.T, payload sendgridV3Payload) // Optional payload validation
+		handler       http.HandlerFunc
+		expectedError string
+		checkPayload  func(t *testing.T, payload sendgridV3Payload)
 	}{
 		{
 			name: "Success - Simple Email",
@@ -94,11 +85,10 @@ func TestEmailService_Send(t *testing.T) {
 				HTMLContent: "<h1>HTML Content</h1>",
 			},
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				// Assert
 				assert.Equal(t, http.MethodPost, r.Method, "Expected POST request")
 				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 				assert.Equal(t, "Bearer "+apiKey, r.Header.Get("Authorization"))
-				w.WriteHeader(http.StatusAccepted) // 202 Accepted is typical for SendGrid v3 mail/send
+				w.WriteHeader(http.StatusAccepted)
 			},
 			expectedError: "",
 			checkPayload: func(t *testing.T, p sendgridV3Payload) {
@@ -160,7 +150,7 @@ func TestEmailService_Send(t *testing.T) {
 			},
 			handler: func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusBadRequest) // 400 Bad Request
+				w.WriteHeader(http.StatusBadRequest)
 				_, err := w.Write([]byte(`{"errors": [{"message": "Invalid email"}]}`))
 				require.NoError(t, err)
 			},
@@ -178,7 +168,7 @@ func TestEmailService_Send(t *testing.T) {
 				Content: "Content",
 			},
 			handler: func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusInternalServerError) // 500 Internal Server Error
+				w.WriteHeader(http.StatusInternalServerError)
 			},
 			expectedError: "failed to send email, status code: 500",
 		},
@@ -186,19 +176,16 @@ func TestEmailService_Send(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			lastRequestPayload = sendgridV3Payload{} // Reset payload capture
-			handlerFunc = tc.handler                 // Set the handler for this test
-
-			startMockServer() // Start the server for this test case
+			var lastRequestPayload sendgridV3Payload
+			mockServer := createMockSendGridServer(t, tc.handler, &lastRequestPayload)
+			defer mockServer.Close()
 
 			service := sendgrid_client.NewEmailService(apiKey, fromEmail, fromName)
 			sgClient := service.GetSendGridClient()
-			sgClient.Request.BaseURL = mockServer.URL
+			sgClient.BaseURL = mockServer.URL
 
-			// Act
 			err := service.Send(ctx, tc.req)
 
-			// Assert
 			if tc.expectedError == "" {
 				assert.NoError(t, err, "Expected no error")
 			} else {
@@ -209,33 +196,35 @@ func TestEmailService_Send(t *testing.T) {
 			if tc.checkPayload != nil {
 				tc.checkPayload(t, lastRequestPayload)
 			}
-
-			mockServer.Close()
 		})
 	}
+}
 
-	t.Run("Failure - Network Error", func(t *testing.T) {
-		// Arrange
-		startMockServer()
+func TestEmailService_Send_NetworkError(t *testing.T) {
+	apiKey := "SG.test-api-key"
+	fromEmail := "from@example.com"
+	fromName := "Test Sender"
+	ctx := t.Context()
 
-		service := sendgrid_client.NewEmailService(apiKey, fromEmail, fromName)
-		sgClient := service.GetSendGridClient()
-		sgClient.Request.BaseURL = mockServer.URL
-		mockServer.Close()
+	var lastRequestPayload sendgridV3Payload
+	mockServer := createMockSendGridServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}, &lastRequestPayload)
 
-		req := &models.EmailNotificationRequest{
-			To:      "recipient@example.com",
-			Subject: "Network Error Test",
-			Content: "Content",
-		}
+	service := sendgrid_client.NewEmailService(apiKey, fromEmail, fromName)
+	sgClient := service.GetSendGridClient()
+	sgClient.BaseURL = mockServer.URL
+	mockServer.Close()
 
-		// Act
-		err := service.Send(ctx, req)
+	req := &models.EmailNotificationRequest{
+		To:      "recipient@example.com",
+		Subject: "Network Error Test",
+		Content: "Content",
+	}
 
-		// Assert
-		assert.Error(t, err, "Expected a network error")
-		assert.True(t, strings.Contains(err.Error(), "connect: connection refused") || strings.Contains(err.Error(), "dial tcp"), "Expected connection refused or dial tcp error")
-	})
+	err := service.Send(ctx, req)
+	assert.Error(t, err, "Expected a network error")
+	assert.True(t, strings.Contains(err.Error(), "connect: connection refused") || strings.Contains(err.Error(), "dial tcp"), "Expected connection refused or dial tcp error")
 }
 
 type testEmailService struct {

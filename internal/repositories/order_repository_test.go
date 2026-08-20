@@ -23,7 +23,9 @@ func setupOrderRepoTest(t *testing.T) (repository.OrderRepository, sqlmock.Sqlmo
 	require.NoError(t, err, "Failed to create sqlmock")
 
 	t.Cleanup(func() {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
 	})
 
 	repo := repository.NewOrderRepository(db)
@@ -35,7 +37,11 @@ func setupOrderRepoTest(t *testing.T) (repository.OrderRepository, sqlmock.Sqlmo
 func TestNewOrderRepository(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
+	})
 
 	repo := repository.NewOrderRepository(db)
 	assert.NotNil(t, repo, "NewOrderRepository should return a non-nil repository")

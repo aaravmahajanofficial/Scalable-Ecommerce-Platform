@@ -43,7 +43,7 @@ func NewStripeClient(apiKey, webhookSecret string) Client {
 // PaymentIntent == "planned payment" or order waiting for payment.
 func (s *stripeClient) CreatePaymentIntent(amount int64, currency, description, customerID string) (*stripe.PaymentIntent, error) {
 	params := &stripe.PaymentIntentParams{
-		Amount:      stripe.Int64(amount),
+		Amount:      new(amount),
 		Currency:    stripe.String(currency),
 		Description: stripe.String(description),
 	}
@@ -71,8 +71,8 @@ func (s *stripeClient) CreatePaymentMethod(cardNumber, cardExpMonth, cardExpYear
 		Type: stripe.String("card"),
 		Card: &stripe.PaymentMethodCardParams{
 			Number:   stripe.String(cardNumber),
-			ExpMonth: stripe.Int64(expMonth),
-			ExpYear:  stripe.Int64(expYear),
+			ExpMonth: new(expMonth),
+			ExpYear:  new(expYear),
 			CVC:      stripe.String(cardCVC),
 		},
 	}
@@ -109,7 +109,7 @@ func (s *stripeClient) ConfirmPaymentIntent(paymentIntentID string) (*stripe.Pay
 func (s *stripeClient) RefundPayment(paymentIntentID string, amount int64) (*stripe.Refund, error) {
 	params := &stripe.RefundParams{
 		PaymentIntent: stripe.String(paymentIntentID),
-		Amount:        stripe.Int64(amount),
+		Amount:        new(amount),
 	}
 
 	return refund.New(params)
