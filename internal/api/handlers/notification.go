@@ -6,10 +6,10 @@ import (
 	"strconv"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/middleware"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
+	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	service "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/services"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
+	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils/response"
 	"github.com/go-playground/validator/v10"
 )
@@ -49,7 +49,7 @@ func (h *NotificationHandler) SendEmail() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized notification creation attempt")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}
@@ -58,7 +58,7 @@ func (h *NotificationHandler) SendEmail() http.HandlerFunc {
 
 		// Decode the request body
 		var req models.EmailNotificationRequest
-		if !utils.ParseAndValidate(r, w, &req, h.validator) {
+		if !apputils.ParseAndValidate(r, w, &req, h.validator) {
 			logger.Warn("Invalid notification input")
 
 			return
@@ -102,7 +102,7 @@ func (h *NotificationHandler) ListNotifications() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order access attempt")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}

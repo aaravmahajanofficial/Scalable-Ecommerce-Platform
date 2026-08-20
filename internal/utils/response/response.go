@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
+	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 )
 
 type APIResponse struct {
@@ -45,7 +45,7 @@ func Error(w http.ResponseWriter, err error) {
 
 	var errorResponse *ErrorResponse
 
-	if appErr, ok := errors.IsAppError(err); ok {
+	if appErr, ok := apperrors.IsAppError(err); ok {
 		statusCode = appErr.StatusCode
 		errorResponse = &ErrorResponse{
 			Code:    appErr.Code,
@@ -58,7 +58,7 @@ func Error(w http.ResponseWriter, err error) {
 	} else {
 		statusCode = http.StatusInternalServerError
 		errorResponse = &ErrorResponse{
-			Code:    errors.ErrCodeInternal,
+			Code:    apperrors.ErrCodeInternal,
 			Message: "An unexpected error occurred",
 		}
 	}
