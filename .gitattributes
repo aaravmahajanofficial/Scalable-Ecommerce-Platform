@@ -1,0 +1,12 @@
+# Default: Enforce LF for all text files and normalize in repository
+* text=auto eol=lf
+
+# Windows-specific scripts that require CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binaries / Executables
+*.exe binary
+*.dll binary
+*.so binary
