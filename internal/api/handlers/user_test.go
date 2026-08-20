@@ -10,7 +10,7 @@ import (
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/handlers"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/middleware"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
+	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/services/mocks"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils/response"
@@ -33,7 +33,7 @@ func TestUserHandler_Register(t *testing.T) {
 
 		reqBody, err := json.Marshal(registerReq)
 		assert.NoError(t, err)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/users/register", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/users/register", bytes.NewBuffer(reqBody))
 		req.Header.Set("Content/Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -98,7 +98,7 @@ func TestUserHandler_Register(t *testing.T) {
 
 		reqBody, err := json.Marshal(invalidReq)
 		assert.NoError(t, err)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/users/register", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/users/register", bytes.NewBuffer(reqBody))
 		req.Header.Set("Content/Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -115,7 +115,7 @@ func TestUserHandler_Register(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, respBody.Success)
 		assert.NotNil(t, respBody.Error)
-		assert.Equal(t, errors.ErrCodeValidation, respBody.Error.Code)
+		assert.Equal(t, apperrors.ErrCodeValidation, respBody.Error.Code)
 
 		mockUserService.AssertNotCalled(t, "Register")
 	})
@@ -129,7 +129,7 @@ func TestUserHandler_Register(t *testing.T) {
 
 		reqBody, err := json.Marshal(registerReq)
 		assert.NoError(t, err)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/users/register", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/users/register", bytes.NewBuffer(reqBody))
 		req.Header.Set("Content/Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -137,7 +137,7 @@ func TestUserHandler_Register(t *testing.T) {
 		// did the handler pass the right data to the service?
 		mockUserService.On("Register", mock.Anything, mock.MatchedBy(func(r *models.RegisterRequest) bool {
 			return r.Email == registerReq.Email && r.Name == registerReq.Name
-		})).Return(nil, errors.DuplicateEntryError("Email already registered")).Once()
+		})).Return(nil, apperrors.DuplicateEntryError("Email already registered")).Once()
 
 		// Act
 		handler := userHandler.Register()
@@ -151,7 +151,7 @@ func TestUserHandler_Register(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, respBody.Success)
 		assert.NotNil(t, respBody.Error)
-		assert.Equal(t, errors.ErrCodeDuplicateEntry, respBody.Error.Code)
+		assert.Equal(t, apperrors.ErrCodeDuplicateEntry, respBody.Error.Code)
 
 		mockUserService.AssertExpectations(t)
 	})
@@ -170,7 +170,7 @@ func TestUserHandler_Login(t *testing.T) {
 
 		reqBody, err := json.Marshal(loginReq)
 		assert.NoError(t, err)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/users/login", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/users/login", bytes.NewBuffer(reqBody))
 		req.Header.Set("Content/Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -221,7 +221,7 @@ func TestUserHandler_Login(t *testing.T) {
 
 		reqBody, err := json.Marshal(loginReq)
 		assert.NoError(t, err)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/users/login", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/users/login", bytes.NewBuffer(reqBody))
 		req.Header.Set("Content/Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -249,7 +249,7 @@ func TestUserHandler_Login(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, respBody.Success)
 		assert.NotNil(t, respBody.Error)
-		assert.Equal(t, errors.ErrCodeUnauthorized, respBody.Error.Code)
+		assert.Equal(t, apperrors.ErrCodeUnauthorized, respBody.Error.Code)
 
 		mockUserService.AssertExpectations(t)
 	})
@@ -262,7 +262,7 @@ func TestUserHandler_Login(t *testing.T) {
 
 		reqBody, err := json.Marshal(loginReq)
 		assert.NoError(t, err)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/users/login", bytes.NewBuffer(reqBody))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/users/login", bytes.NewBuffer(reqBody))
 		req.Header.Set("Content/Type", "application/json")
 
 		w := httptest.NewRecorder()
@@ -290,7 +290,7 @@ func TestUserHandler_Login(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, respBody.Success)
 		assert.NotNil(t, respBody.Error)
-		assert.Equal(t, errors.ErrCodeTooManyRequests, respBody.Error.Code)
+		assert.Equal(t, apperrors.ErrCodeTooManyRequests, respBody.Error.Code)
 
 		mockUserService.AssertExpectations(t)
 	})
@@ -310,7 +310,7 @@ func TestUserHandler_Profile(t *testing.T) {
 
 		mockUserService.On("GetUserByID", mock.Anything, user.ID).Return(user, nil).Once()
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/users/profile", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/users/profile", http.NoBody)
 
 		claims := &models.Claims{
 			UserID: user.ID,
@@ -338,7 +338,7 @@ func TestUserHandler_Profile(t *testing.T) {
 	})
 	t.Run("Failure - No Auth Context", func(t *testing.T) {
 		// Arrange - request without auth context
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/users/profile", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/users/profile", http.NoBody)
 		w := httptest.NewRecorder()
 
 		// Act
@@ -353,7 +353,7 @@ func TestUserHandler_Profile(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, respBody.Success)
 		assert.NotNil(t, respBody.Error)
-		assert.Equal(t, errors.ErrCodeUnauthorized, respBody.Error.Code)
+		assert.Equal(t, apperrors.ErrCodeUnauthorized, respBody.Error.Code)
 
 		mockUserService.AssertNotCalled(t, "GetUserByID")
 	})
@@ -362,7 +362,7 @@ func TestUserHandler_Profile(t *testing.T) {
 		userID := uuid.New()
 		email := "test@example.com"
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/users/profile", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/users/profile", http.NoBody)
 
 		claims := &models.Claims{
 			UserID: userID,
@@ -374,7 +374,7 @@ func TestUserHandler_Profile(t *testing.T) {
 
 		w := httptest.NewRecorder()
 
-		mockUserService.On("GetUserByID", mock.Anything, userID).Return(nil, errors.NotFoundError("User not found")).Once()
+		mockUserService.On("GetUserByID", mock.Anything, userID).Return(nil, apperrors.NotFoundError("User not found")).Once()
 
 		// Act
 		handler := userHandler.Profile()
@@ -388,7 +388,7 @@ func TestUserHandler_Profile(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, respBody.Success)
 		assert.NotNil(t, respBody.Error)
-		assert.Equal(t, errors.ErrCodeNotFound, respBody.Error.Code)
+		assert.Equal(t, apperrors.ErrCodeNotFound, respBody.Error.Code)
 
 		mockUserService.AssertExpectations(t)
 	})
