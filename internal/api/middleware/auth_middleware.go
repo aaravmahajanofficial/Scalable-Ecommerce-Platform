@@ -36,7 +36,7 @@ func (m *AuthMiddleware) extractBearerToken(authHeader string, logger *slog.Logg
 
 	tokenParts := strings.Split(authHeader, " ")
 	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-		logger.Warn("Invalid authorization header format", slog.String("header", authHeader))
+		logger.Warn("Invalid authorization header format")
 		return "", appErrors.UnauthorizedError("Invalid authorization format")
 	}
 
