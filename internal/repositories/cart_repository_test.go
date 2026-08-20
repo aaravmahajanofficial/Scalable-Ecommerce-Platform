@@ -24,7 +24,9 @@ func setupCartRepoTest(t *testing.T) (repository.CartRepository, sqlmock.Sqlmock
 	require.NoError(t, err, "Failed to create sqlmock")
 
 	t.Cleanup(func() {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
 	})
 
 	repo := repository.NewCartRepo(db)
@@ -36,7 +38,11 @@ func setupCartRepoTest(t *testing.T) (repository.CartRepository, sqlmock.Sqlmock
 func TestNewCartRepo(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
+	})
 
 	repo := repository.NewCartRepo(db)
 	assert.NotNil(t, repo, "NewCartRepo should return a non-nil repository")

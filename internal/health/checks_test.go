@@ -15,36 +15,35 @@ import (
 	"github.com/go-redis/redismock/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	stripe_go "github.com/stripe/stripe-go/v81"
-	"github.com/stripe/stripe-go/v81/form"
+	stripe_go "github.com/stripe/stripe-go/v86"
 )
 
 type mockStripeBackend struct {
 	err error
 }
 
-func (m *mockStripeBackend) Call(method, path, key string, params stripe_go.ParamsContainer, v stripe_go.LastResponseSetter) error {
+func (m *mockStripeBackend) Call(_, _, _ string, _ stripe_go.ParamsContainer, _ stripe_go.LastResponseSetter) error {
 	return m.err
 }
 
-func (m *mockStripeBackend) CallRaw(method, path, key string, body *form.Values, params *stripe_go.Params, v stripe_go.LastResponseSetter) error {
+func (m *mockStripeBackend) CallRaw(_, _, _ string, _ []byte, _ *stripe_go.Params, _ stripe_go.LastResponseSetter) error {
 	return m.err
 }
 
-func (m *mockStripeBackend) CallMultipart(method, path, key, boundary string, body *bytes.Buffer, params *stripe_go.Params, v stripe_go.LastResponseSetter) error {
+func (m *mockStripeBackend) CallMultipart(_, _, _, _ string, _ *bytes.Buffer, _ *stripe_go.Params, _ stripe_go.LastResponseSetter) error {
 	return m.err
 }
 
-func (m *mockStripeBackend) CallStreaming(method, path, key string, params stripe_go.ParamsContainer, v stripe_go.StreamingLastResponseSetter) error {
+func (m *mockStripeBackend) CallStreaming(_, _, _ string, _ stripe_go.ParamsContainer, _ stripe_go.StreamingLastResponseSetter) error {
 	return m.err
 }
 
-func (m *mockStripeBackend) SetMaxNetworkRetries(maxNetworkRetries int64) {}
+func (m *mockStripeBackend) SetMaxNetworkRetries(_ int64) {}
 
 func TestNewLivenessHandler(t *testing.T) {
 	handler := health.NewLivenessHandler()
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/live", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/live", http.NoBody)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -59,12 +58,20 @@ func TestNewReadinessHandler_StripeUninitialized(t *testing.T) {
 
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("db close error: %v", closeErr)
+		}
+	})
 
 	redisClient, _ := redismock.NewClientMock()
-	defer redisClient.Close()
+	t.Cleanup(func() {
+		if closeErr := redisClient.Close(); closeErr != nil {
+			t.Logf("redis client close error: %v", closeErr)
+		}
+	})
 
-	endpoint := &health.HealthEndpoint{
+	endpoint := &health.Endpoint{
 		DB:           db,
 		RedisClient:  redisClient,
 		StripeClient: nil,
@@ -74,7 +81,7 @@ func TestNewReadinessHandler_StripeUninitialized(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, handler)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", http.NoBody)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -89,13 +96,21 @@ func TestNewReadinessHandler_StripeTimeout(t *testing.T) {
 
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("db close error: %v", closeErr)
+		}
+	})
 
 	redisClient, _ := redismock.NewClientMock()
-	defer redisClient.Close()
+	t.Cleanup(func() {
+		if closeErr := redisClient.Close(); closeErr != nil {
+			t.Logf("redis client close error: %v", closeErr)
+		}
+	})
 
 	sc := stripeclient.NewStripeClient("test", "test")
-	endpoint := &health.HealthEndpoint{
+	endpoint := &health.Endpoint{
 		DB:           db,
 		RedisClient:  redisClient,
 		StripeClient: &sc,
@@ -113,7 +128,7 @@ func TestNewReadinessHandler_StripeTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 0)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/ready", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/ready", http.NoBody)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -128,13 +143,21 @@ func TestNewReadinessHandler_StripeError(t *testing.T) {
 
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("db close error: %v", closeErr)
+		}
+	})
 
 	redisClient, _ := redismock.NewClientMock()
-	defer redisClient.Close()
+	t.Cleanup(func() {
+		if closeErr := redisClient.Close(); closeErr != nil {
+			t.Logf("redis client close error: %v", closeErr)
+		}
+	})
 
 	sc := stripeclient.NewStripeClient("test", "test")
-	endpoint := &health.HealthEndpoint{
+	endpoint := &health.Endpoint{
 		DB:           db,
 		RedisClient:  redisClient,
 		StripeClient: &sc,
@@ -148,7 +171,7 @@ func TestNewReadinessHandler_StripeError(t *testing.T) {
 	handler, err := health.NewReadinessHandler(cfg, endpoint)
 	require.NoError(t, err)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", http.NoBody)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
@@ -163,17 +186,25 @@ func TestNewReadinessHandler_Success(t *testing.T) {
 
 	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("db close error: %v", closeErr)
+		}
+	})
 
 	mock.ExpectPing().WillReturnError(nil)
 
 	redisClient, redisMock := redismock.NewClientMock()
-	defer redisClient.Close()
+	t.Cleanup(func() {
+		if closeErr := redisClient.Close(); closeErr != nil {
+			t.Logf("redis client close error: %v", closeErr)
+		}
+	})
 
 	redisMock.ExpectPing().SetVal("PONG")
 
 	sc := stripeclient.NewStripeClient("test", "test")
-	endpoint := &health.HealthEndpoint{
+	endpoint := &health.Endpoint{
 		DB:           db,
 		RedisClient:  redisClient,
 		StripeClient: &sc,
@@ -187,7 +218,7 @@ func TestNewReadinessHandler_Success(t *testing.T) {
 	handler, err := health.NewReadinessHandler(cfg, endpoint)
 	require.NoError(t, err)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/ready", http.NoBody)
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()

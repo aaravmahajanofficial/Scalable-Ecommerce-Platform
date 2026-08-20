@@ -14,30 +14,30 @@ import (
 )
 
 func CreateTestRequestWithContext(method, target string, body io.Reader, userID uuid.UUID, pathParams map[string]string) *http.Request {
-	req := httptest.NewRequest(method, target, body)
+	claims := &models.Claims{UserID: userID, Email: "test@example.com"}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	ctx := context.WithValue(context.Background(), middleware.UserContextKey, claims)
+	ctx = context.WithValue(ctx, middleware.LoggerKey, logger)
+
+	req := httptest.NewRequestWithContext(ctx, method, target, body)
 
 	for key, value := range pathParams {
 		req.SetPathValue(key, value)
 	}
 
-	claims := &models.Claims{UserID: userID, Email: "test@example.com"}
-
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	ctx := context.WithValue(req.Context(), middleware.UserContextKey, claims)
-	ctx = context.WithValue(ctx, middleware.LoggerKey, logger)
-
-	return req.WithContext(ctx)
+	return req
 }
 
 func CreateTestRequestWithoutContext(method, target string, body io.Reader, pathParams map[string]string) *http.Request {
-	req := httptest.NewRequest(method, target, body)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	ctx := context.WithValue(context.Background(), middleware.LoggerKey, logger)
+
+	req := httptest.NewRequestWithContext(ctx, method, target, body)
 
 	for key, value := range pathParams {
 		req.SetPathValue(key, value)
 	}
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	ctx := context.WithValue(req.Context(), middleware.LoggerKey, logger)
-
-	return req.WithContext(ctx)
+	return req
 }
