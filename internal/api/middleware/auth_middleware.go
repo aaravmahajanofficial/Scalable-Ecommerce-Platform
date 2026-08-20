@@ -28,82 +28,75 @@ func NewAuthMiddleware(jwtKey []byte) *AuthMiddleware {
 	return &AuthMiddleware{jwtKey: jwtKey}
 }
 
+func (m *AuthMiddleware) extractBearerToken(authHeader string, logger *slog.Logger) (string, *appErrors.AppError) {
+	if authHeader == "" {
+		logger.Warn("Missing authorization header")
+		return "", appErrors.UnauthorizedError("Authorization header is required")
+	}
+
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		logger.Warn("Invalid authorization header format", slog.String("header", authHeader))
+		return "", appErrors.UnauthorizedError("Invalid authorization format")
+	}
+
+	return tokenParts[1], nil
+}
+
+func (m *AuthMiddleware) validateJWTClaims(tokenString string, logger *slog.Logger) (*models.Claims, *appErrors.AppError) {
+	claims := &models.Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok || t.Header["alg"] != jwt.SigningMethodHS256.Alg() {
+			logger.Error("Unexpected signing method used in JWT", slog.Any("alg", t.Header["alg"]))
+			return nil, appErrors.BadRequestError("unexpected signing method")
+		}
+		return m.jwtKey, nil
+	})
+	if err != nil {
+		logger.Warn("JWT parsing failed", slog.String("error", err.Error()))
+
+		var appErr *appErrors.AppError
+		if errors.As(err, &appErr) && appErr.Code == appErrors.ErrCodeBadRequest {
+			return nil, appErr
+		}
+		return nil, appErrors.UnauthorizedError("Invalid or expired token")
+	}
+
+	if !token.Valid {
+		logger.Warn("Invalid token")
+		return nil, appErrors.UnauthorizedError("Invalid token")
+	}
+
+	if claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
+		logger.Warn("Expired token", slog.String("userId", claims.UserID.String()))
+		return nil, appErrors.UnauthorizedError("Token expired")
+	}
+
+	return claims, nil
+}
+
 func (m *AuthMiddleware) Authenticate(next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger := LoggerFromContext(r.Context())
 
-		// Get token from Authorization header
-		authHeader := r.Header.Get("Authorization")
-
-		if authHeader == "" {
-			logger.Warn("Missing authorization header")
-			response.Error(w, appErrors.UnauthorizedError("Authorization header is required"))
-
+		tokenString, extractErr := m.extractBearerToken(r.Header.Get("Authorization"), logger)
+		if extractErr != nil {
+			response.Error(w, extractErr)
 			return
 		}
 
-		// Token is of format : "Bearer <token>"
-		tokenParts := strings.Split(authHeader, " ")
-
-		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			logger.Warn("Invalid authorization header format", slog.String("header", authHeader))
-			response.Error(w, appErrors.UnauthorizedError("Invalid authorization format"))
-
+		claims, validateErr := m.validateJWTClaims(tokenString, logger)
+		if validateErr != nil {
+			response.Error(w, validateErr)
 			return
 		}
 
-		tokenString := tokenParts[1]
-
-		// Stores the decoded information
-		claims := &models.Claims{}
-
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
-			// check the signing method
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok || t.Header["alg"] != jwt.SigningMethodHS256.Alg() {
-				logger.Error("Unexpected signing method used in JWT", slog.Any("alg", t.Header["alg"]))
-
-				return nil, appErrors.BadRequestError("unexpected signing method")
-			}
-
-			return m.jwtKey, nil
-		})
-		if err != nil {
-			logger.Warn("JWT parsing failed", slog.String("error", err.Error()))
-
-			var appErr *appErrors.AppError
-			if errors.As(err, &appErr) && appErr.Code == appErrors.ErrCodeBadRequest {
-				response.Error(w, appErr) // Respond with the specific bad request error
-			} else {
-				// Handle other parsing errors (expired, malformed, invalid signature) as Unauthorized
-				response.Error(w, appErrors.UnauthorizedError("Invalid or expired token"))
-			}
-
-			return
-		}
-
-		if !token.Valid {
-			logger.Warn("Invalid token")
-			response.Error(w, appErrors.UnauthorizedError("Invalid token"))
-
-			return
-		}
-
-		if claims.ExpiresAt != nil && claims.ExpiresAt.Before(time.Now()) {
-			logger.Warn("Expired token", slog.String("userId", claims.UserID.String()))
-			response.Error(w, appErrors.UnauthorizedError("Token expired"))
-
-			return
-		}
-
-		// Add userId to the context
-		// It attaches a new key-value pair ("user": claims) to the context.
 		ctx := context.WithValue(r.Context(), UserContextKey, claims)
-
 		requestScopedLogger := logger.With(slog.String("userId", claims.UserID.String()))
 		ctx = context.WithValue(ctx, LoggerKey, requestScopedLogger)
 
 		requestScopedLogger.Info("User authenticated")
-
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

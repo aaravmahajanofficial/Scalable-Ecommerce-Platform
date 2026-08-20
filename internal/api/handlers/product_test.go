@@ -24,7 +24,7 @@ import (
 
 // newTestRequest -> creates a request with context containing a logger.
 func newTestRequest(method, target string, body []byte) *http.Request {
-	req := httptest.NewRequest(method, target, bytes.NewReader(body))
+	req := httptest.NewRequestWithContext(context.Background(), method, target, bytes.NewReader(body))
 
 	logger := slog.Default()
 	ctx := context.WithValue(req.Context(), middleware.LoggerKey, logger)
@@ -274,10 +274,10 @@ func TestUpdateProduct(t *testing.T) {
 		// Arrange
 		productID := uuid.New()
 		reqBody := models.UpdateProductRequest{
-			Name:          stringPtr("Updated Product"),
-			Description:   stringPtr("Updated Description"),
-			Price:         float64Ptr(109.99),
-			StockQuantity: intPtr(15),
+			Name:          new("Updated Product"),
+			Description:   new("Updated Description"),
+			Price:         new(109.99),
+			StockQuantity: new(15),
 		}
 		reqBodyBytes, err := json.Marshal(reqBody)
 		assert.NoError(t, err)
@@ -328,7 +328,7 @@ func TestUpdateProduct(t *testing.T) {
 	t.Run("Invalid ID Format", func(t *testing.T) {
 		// Arrange
 		invalidID := "not-a-uuid"
-		reqBody := models.UpdateProductRequest{Name: stringPtr("Update")}
+		reqBody := models.UpdateProductRequest{Name: new("Update")}
 		reqBodyBytes, err := json.Marshal(reqBody)
 		assert.NoError(t, err)
 
@@ -368,7 +368,7 @@ func TestUpdateProduct(t *testing.T) {
 		// Arrange
 		productID := uuid.New()
 		// Price is negative, which should fail validation if defined in UpdateProductRequest model
-		reqBody := models.UpdateProductRequest{Price: float64Ptr(-10.0)}
+		reqBody := models.UpdateProductRequest{Price: new(-10.0)}
 		reqBodyBytes, err := json.Marshal(reqBody)
 		assert.NoError(t, err)
 
@@ -390,7 +390,7 @@ func TestUpdateProduct(t *testing.T) {
 	t.Run("Product Not Found", func(t *testing.T) {
 		// Arrange
 		productID := uuid.New()
-		reqBody := models.UpdateProductRequest{Name: stringPtr("Update")}
+		reqBody := models.UpdateProductRequest{Name: new("Update")}
 		reqBodyBytes, err := json.Marshal(reqBody)
 		assert.NoError(t, err)
 
@@ -414,7 +414,7 @@ func TestUpdateProduct(t *testing.T) {
 	t.Run("Failure - Service Error", func(t *testing.T) {
 		// Arrange
 		productID := uuid.New()
-		reqBody := models.UpdateProductRequest{Name: stringPtr("Update")}
+		reqBody := models.UpdateProductRequest{Name: new("Update")}
 		reqBodyBytes, err := json.Marshal(reqBody)
 		assert.NoError(t, err)
 
@@ -601,17 +601,4 @@ func TestListProducts(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), appErrors.ErrCodeDatabaseError)
 		mockProductService.AssertExpectations(t)
 	})
-}
-
-// Helper functions for pointer types used in UpdateProductRequest.
-func stringPtr(s string) *string {
-	return &s
-}
-
-func float64Ptr(f float64) *float64 {
-	return &f
-}
-
-func intPtr(i int) *int {
-	return &i
 }

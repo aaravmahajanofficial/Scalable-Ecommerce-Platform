@@ -148,15 +148,12 @@ func TestAuthMiddleware(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+			baseLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+			ctx := context.WithValue(context.Background(), middleware.LoggerKey, baseLogger)
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
 			if tc.authHeader != "" {
 				req.Header.Set("Authorization", tc.authHeader)
 			}
-
-			// Add a base logger to the context, simulating the Logging middleware
-			baseLogger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-			ctx := context.WithValue(req.Context(), middleware.LoggerKey, baseLogger)
-			req = req.WithContext(ctx)
 
 			// Apply any specific request setup
 			if tc.setupRequest != nil {
