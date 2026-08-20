@@ -8,7 +8,7 @@ import (
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/middleware"
 	models "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	service "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/services"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
+	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils/response"
 	"github.com/go-playground/validator/v10"
 )
@@ -44,7 +44,7 @@ func (h *ProductHandler) CreateProduct() http.HandlerFunc {
 		var req models.CreateProductRequest
 
 		// Validate Input
-		if !utils.ParseAndValidate(r, w, &req, h.validator) {
+		if !apputils.ParseAndValidate(r, w, &req, h.validator) {
 			return
 		}
 
@@ -82,7 +82,7 @@ func (h *ProductHandler) GetProduct() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger := middleware.LoggerFromContext(r.Context())
 
-		id, err := utils.ParseID(r, "id")
+		id, err := apputils.ParseID(r, "id")
 		if err != nil {
 			logger.Warn("Invalid product ID in path", slog.Any("error", err), slog.String("pathValue", r.PathValue("id")))
 			response.Error(w, err)
@@ -126,7 +126,7 @@ func (h *ProductHandler) UpdateProduct() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger := middleware.LoggerFromContext(r.Context())
 
-		id, err := utils.ParseID(r, "id")
+		id, err := apputils.ParseID(r, "id")
 		if err != nil {
 			slog.Warn("Invalid product id", slog.String("error", err.Error()))
 			response.Error(w, err)
@@ -140,7 +140,7 @@ func (h *ProductHandler) UpdateProduct() http.HandlerFunc {
 		var req models.UpdateProductRequest
 
 		// Validate Input
-		if !utils.ParseAndValidate(r, w, &req, h.validator) {
+		if !apputils.ParseAndValidate(r, w, &req, h.validator) {
 			logger.Warn("Invalid product update input")
 
 			return

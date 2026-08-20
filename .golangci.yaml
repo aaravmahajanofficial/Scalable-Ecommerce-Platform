@@ -6,23 +6,39 @@ run:
 
 linters:
   enable:
+    # Correctness / static analysis
     - govet
     - staticcheck
     - errcheck
-    - gocyclo
-    - revive
-    - bodyclose
-    - gosec
-    - unused
+    - errorlint
+    - nilerr
     - nilnil
+    - unused
+    - ineffassign
+    - unconvert
+
+    # Security / resource handling
+    - gosec
+    - bodyclose
+
+    # Complexity / maintainability
+    - gocyclo
+    - gocognit
+    - revive
     - gocritic
 
-  settings:
-    exhaustruct:
-      exclude:
-        - ".*_test\\.go"
-        - "^testing\\.T$"
+    # Modern Go
+    - modernize
+    - copyloopvar
+    - intrange
 
+    # Context / API correctness
+    - noctx
+
+    # Suppression hygiene
+    - nolintlint
+
+  settings:
     errcheck:
       check-type-assertions: true
       check-blank: true
@@ -32,11 +48,16 @@ linters:
         - all
 
     gocyclo:
-      min-complexity: 20
+      min-complexity: 15
+
+    gocognit:
+      min-complexity: 15
 
     revive:
       rules:
         - name: var-naming
+          severity: warning
+        - name: package-naming
           severity: warning
         - name: empty-block
           severity: error
@@ -49,39 +70,34 @@ linters:
         - style
         - performance
 
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
   exclusions:
+    generated: lax
+
     paths:
       - "vendor/.*"
       - "node_modules/.*"
-      - ".*_generated\\.go"
-      - ".*_test\\.go"
 
     rules:
-      - path: "vendor/.*"
-        linters:
-          - all
-
-      - path: "_test\\.go"
+      # Security checks in tests are often intentionally noisy.
+      - path: "_test\\.go$"
         linters:
           - gosec
-          - errcheck
-
-formatters:
-  enable:
-    - gofmt
-    - goimports
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
 
 output:
-  formats:
-    text:
-      path: stdout
-      colors: true
-
   sort-order:
     - linter
     - severity
     - file
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
