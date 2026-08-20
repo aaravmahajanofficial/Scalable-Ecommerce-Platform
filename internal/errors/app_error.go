@@ -1,5 +1,5 @@
-// Package errors provides application errors.
-package errors
+// Package apperrors provides application errors.
+package apperrors
 
 import (
 	"errors"
@@ -102,9 +102,8 @@ func ResourceExhaustedError(message string) *AppError {
 }
 
 func IsAppError(err error) (*AppError, bool) {
-	var appError *AppError
 
-	if errors.As(err, &appError) {
+	if appError, ok := errors.AsType[*AppError](err); ok {
 		return appError, true
 	}
 

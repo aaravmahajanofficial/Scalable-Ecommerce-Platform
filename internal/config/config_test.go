@@ -10,8 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	require.NoError(t, os.Unsetenv(key))
+}
+
 // Creates a temporary YAML config file in a temporary directory.
-func createTempConfigFile(t *testing.T, content string) (string, func()) {
+func createTempConfigFile(t *testing.T, content string) (filePath string, cleanup func()) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "test_config.yaml")
@@ -37,8 +42,12 @@ func createTempDefaultConfigFile(t *testing.T, content string) func() {
 	require.NoError(t, err, "Failed to write temporary default config file")
 
 	return func() {
-		os.Remove(defaultConfigPath)
-		_ = os.Remove(configDir)
+		if removeErr := os.Remove(defaultConfigPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			t.Logf("failed to remove default config file: %v", removeErr)
+		}
+		if removeErr := os.Remove(configDir); removeErr != nil && !os.IsNotExist(removeErr) {
+			t.Logf("failed to remove config dir: %v", removeErr)
+		}
 	}
 }
 
@@ -90,10 +99,10 @@ cache:
 		originalArgs := os.Args
 
 		t.Cleanup(func() { os.Args = originalArgs })
-		os.Unsetenv("CONFIG_PATH")
-		os.Unsetenv("ENV")
-		os.Unsetenv("PG_HOST")
-		os.Unsetenv("REDIS_HOST")
+		unsetEnv(t, "CONFIG_PATH")
+		unsetEnv(t, "ENV")
+		unsetEnv(t, "PG_HOST")
+		unsetEnv(t, "REDIS_HOST")
 	}
 
 	// Verifies values from YAML are loaded correctly
@@ -187,17 +196,17 @@ func TestDatabaseGetDSN(t *testing.T) {
 
 	t.Run("DSN from struct values", func(t *testing.T) {
 		// clear any related environment variables to prevent interference
-		os.Unsetenv("PG_HOST")
-		os.Unsetenv("PG_USER")
-		os.Unsetenv("PG_PASSWORD")
-		os.Unsetenv("PG_DBNAME")
-		os.Unsetenv("PG_SSLMODE")
+		unsetEnv(t, "PG_HOST")
+		unsetEnv(t, "PG_USER")
+		unsetEnv(t, "PG_PASSWORD")
+		unsetEnv(t, "PG_DBNAME")
+		unsetEnv(t, "PG_SSLMODE")
 
 		dsn := dbConfig.GetDSN()
 		assert.Equal(t, expectedBaseDSN, dsn)
 	})
 
-	createMinimalValidConfig := func(t *testing.T, _, _ map[string]string) (string, func()) {
+	createMinimalValidConfig := func(t *testing.T, _, _ map[string]string) (filePath string, cleanup func()) {
 		t.Helper()
 
 		content := `
@@ -231,14 +240,14 @@ security: {JWT_KEY: "filekey"} # Required field
 		t.Setenv("PG_SSLMODE", "require")
 
 		t.Cleanup(func() {
-			os.Unsetenv("PG_HOST")
-			os.Unsetenv("PG_USER")
-			os.Unsetenv("PG_PASSWORD")
-			os.Unsetenv("PG_DBNAME")
-			os.Unsetenv("PG_SSLMODE")
-			os.Unsetenv("REDIS_USER")
-			os.Unsetenv("REDIS_PASSWORD")
-			os.Unsetenv("JWT_KEY")
+			unsetEnv(t, "PG_HOST")
+			unsetEnv(t, "PG_USER")
+			unsetEnv(t, "PG_PASSWORD")
+			unsetEnv(t, "PG_DBNAME")
+			unsetEnv(t, "PG_SSLMODE")
+			unsetEnv(t, "REDIS_USER")
+			unsetEnv(t, "REDIS_PASSWORD")
+			unsetEnv(t, "JWT_KEY")
 		})
 
 		loadedCfg, err := LoadConfigFromPath(configPath)
@@ -258,11 +267,11 @@ security: {JWT_KEY: "filekey"} # Required field
 		t.Setenv("PG_PASSWORD", "envpass2")
 
 		t.Cleanup(func() {
-			os.Unsetenv("PG_HOST")
-			os.Unsetenv("PG_PASSWORD")
-			os.Unsetenv("REDIS_USER")
-			os.Unsetenv("REDIS_PASSWORD")
-			os.Unsetenv("JWT_KEY")
+			unsetEnv(t, "PG_HOST")
+			unsetEnv(t, "PG_PASSWORD")
+			unsetEnv(t, "REDIS_USER")
+			unsetEnv(t, "REDIS_PASSWORD")
+			unsetEnv(t, "JWT_KEY")
 		})
 
 		loadedCfg, err := LoadConfigFromPath(configPath)
@@ -286,7 +295,7 @@ func TestRedisConnectGetDSN(t *testing.T) {
 
 	expectedBaseDSN := "redis://user:password@localhost:6379"
 
-	createMinimalValidConfig := func(t *testing.T) (string, func()) {
+	createMinimalValidConfig := func(t *testing.T) (filePath string, cleanup func()) {
 		t.Helper()
 
 		content := `
@@ -308,10 +317,10 @@ security: {JWT_KEY: "filekey"} # Required field
 	}
 
 	t.Run("DSN from struct values", func(t *testing.T) {
-		os.Unsetenv("REDIS_HOST")
-		os.Unsetenv("REDIS_USER")
-		os.Unsetenv("REDIS_PASSWORD")
-		os.Unsetenv("REDIS_PORT")
+		unsetEnv(t, "REDIS_HOST")
+		unsetEnv(t, "REDIS_USER")
+		unsetEnv(t, "REDIS_PASSWORD")
+		unsetEnv(t, "REDIS_PORT")
 
 		dsn := redisConfig.GetDSN()
 		assert.Equal(t, expectedBaseDSN, dsn)
@@ -327,14 +336,14 @@ security: {JWT_KEY: "filekey"} # Required field
 		t.Setenv("REDIS_PORT", "16379")
 
 		t.Cleanup(func() {
-			os.Unsetenv("REDIS_HOST")
-			os.Unsetenv("REDIS_USER")
-			os.Unsetenv("REDIS_PASSWORD")
-			os.Unsetenv("REDIS_PORT")
-			os.Unsetenv("PG_USER")
-			os.Unsetenv("PG_PASSWORD")
-			os.Unsetenv("PG_DBNAME")
-			os.Unsetenv("JWT_KEY")
+			unsetEnv(t, "REDIS_HOST")
+			unsetEnv(t, "REDIS_USER")
+			unsetEnv(t, "REDIS_PASSWORD")
+			unsetEnv(t, "REDIS_PORT")
+			unsetEnv(t, "PG_USER")
+			unsetEnv(t, "PG_PASSWORD")
+			unsetEnv(t, "PG_DBNAME")
+			unsetEnv(t, "JWT_KEY")
 		})
 
 		loadedCfg, err := LoadConfigFromPath(configPath)
@@ -354,12 +363,12 @@ security: {JWT_KEY: "filekey"} # Required field
 		t.Setenv("REDIS_PASSWORD", "envredispass2")
 
 		t.Cleanup(func() {
-			os.Unsetenv("REDIS_HOST")
-			os.Unsetenv("REDIS_PASSWORD")
-			os.Unsetenv("PG_USER")
-			os.Unsetenv("PG_PASSWORD")
-			os.Unsetenv("PG_DBNAME")
-			os.Unsetenv("JWT_KEY")
+			unsetEnv(t, "REDIS_HOST")
+			unsetEnv(t, "REDIS_PASSWORD")
+			unsetEnv(t, "PG_USER")
+			unsetEnv(t, "PG_PASSWORD")
+			unsetEnv(t, "PG_DBNAME")
+			unsetEnv(t, "JWT_KEY")
 		})
 
 		loadedCfg, err := LoadConfigFromPath(configPath)
@@ -372,10 +381,10 @@ security: {JWT_KEY: "filekey"} # Required field
 	})
 
 	t.Run("DSN with empty username from struct", func(t *testing.T) {
-		os.Unsetenv("REDIS_HOST")
-		os.Unsetenv("REDIS_USER")
-		os.Unsetenv("REDIS_PASSWORD")
-		os.Unsetenv("REDIS_PORT")
+		unsetEnv(t, "REDIS_HOST")
+		unsetEnv(t, "REDIS_USER")
+		unsetEnv(t, "REDIS_PASSWORD")
+		unsetEnv(t, "REDIS_PORT")
 
 		configWithEmptyUser := RedisConnect{
 			Host:     "localhost",
@@ -389,10 +398,10 @@ security: {JWT_KEY: "filekey"} # Required field
 	})
 
 	t.Run("DSN with empty username and password from struct", func(t *testing.T) {
-		os.Unsetenv("REDIS_HOST")
-		os.Unsetenv("REDIS_USER")
-		os.Unsetenv("REDIS_PASSWORD")
-		os.Unsetenv("REDIS_PORT")
+		unsetEnv(t, "REDIS_HOST")
+		unsetEnv(t, "REDIS_USER")
+		unsetEnv(t, "REDIS_PASSWORD")
+		unsetEnv(t, "REDIS_PORT")
 
 		configWithEmptyCreds := RedisConnect{
 			Host:     "localhost",
@@ -411,8 +420,8 @@ func TestMustLoad_SpecificFieldCheck(t *testing.T) {
 		originalArgs := os.Args
 
 		t.Cleanup(func() { os.Args = originalArgs })
-		os.Unsetenv("CONFIG_PATH")
-		os.Unsetenv("CACHE_DEFAULT_TTL")
+		unsetEnv(t, "CONFIG_PATH")
+		unsetEnv(t, "CACHE_DEFAULT_TTL")
 		t.Setenv("ENV", "test")
 		t.Setenv("PG_USER", "test")
 		t.Setenv("PG_PASSWORD", "test")
@@ -479,7 +488,7 @@ security: {JWT_KEY: k}
 `
 		configPath, _ := createTempConfigFile(t, yamlContent)
 		t.Setenv("CONFIG_PATH", configPath)
-		os.Unsetenv("CACHE_DEFAULT_TTL")
+		unsetEnv(t, "CACHE_DEFAULT_TTL")
 
 		cfg, err := LoadConfigFromPath(configPath)
 		require.NoError(t, err)

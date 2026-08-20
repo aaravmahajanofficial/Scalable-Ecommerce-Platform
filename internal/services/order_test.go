@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func setupOrderServiceTest(t *testing.T) (service.OrderService, *mocks.MockOrderRepository, *mocks.MockCartRepository, *mocks.MockProductRepository) {
@@ -110,8 +111,8 @@ func TestCreateOrder_CartNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, order)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeNotFound, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Cart not found")
 	assert.ErrorIs(t, appErr.Unwrap(), mockErr)
@@ -138,8 +139,8 @@ func TestCreateOrder_EmptyCart(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, order)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeBadRequest, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Cannot create order with empty cart")
 
@@ -178,8 +179,8 @@ func TestCreateOrder_ProductNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, order)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeNotFound, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Product not found: "+productID2.String())
 
@@ -215,8 +216,8 @@ func TestCreateOrder_InsufficientStock(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, order)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeBadRequest, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Insufficient stock for product: "+productID1.String())
 
@@ -262,8 +263,8 @@ func TestCreateOrder_CreateOrderRepoError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, order)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Failed to create order")
 	assert.ErrorIs(t, appErr.Unwrap(), mockErr)
@@ -313,8 +314,8 @@ func TestCreateOrder_UpdateInventoryRepoError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, order)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Failed to update inventory")
 	assert.ErrorIs(t, appErr.Unwrap(), mockErr)
@@ -362,8 +363,8 @@ func TestGetOrderByID_NotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, order)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeNotFound, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Order not found")
 	assert.ErrorIs(t, appErr.Unwrap(), mockErr)
@@ -436,8 +437,8 @@ func TestListOrdersByCustomer_RepoError(t *testing.T) {
 	assert.Nil(t, orders)
 	assert.Equal(t, 0, total)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Failed to fetch orders")
 	assert.ErrorIs(t, appErr.Unwrap(), mockErr)
@@ -490,8 +491,8 @@ func TestUpdateOrderStatus_OrderNotFound(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, order)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeNotFound, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Order not found")
 	assert.ErrorIs(t, appErr.Unwrap(), mockErr)
@@ -521,8 +522,8 @@ func TestUpdateOrderStatus_UpdateRepoError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, order)
 
-	appErr, ok := err.(*appErrors.AppError)
-	assert.True(t, ok)
+	var appErr *appErrors.AppError
+	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code)
 	assert.Contains(t, appErr.Error(), "Failed to update order status")
 	assert.ErrorIs(t, appErr.Unwrap(), mockErr)
