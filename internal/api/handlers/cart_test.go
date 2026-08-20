@@ -29,7 +29,7 @@ func setupCartTest(t *testing.T) (*mocks.MockCartService, *handlers.CartHandler)
 
 // createAuthenticatedRequest -> creates a request with authentication context.
 func createAuthenticatedRequest(method, url string, body []byte) (*http.Request, *models.Claims) {
-	req := httptest.NewRequest(method, url, bytes.NewBuffer(body))
+	req := httptest.NewRequestWithContext(context.Background(), method, url, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	userID := uuid.New()
@@ -87,7 +87,7 @@ func TestGetCart(t *testing.T) {
 		_, cartHandler := setupCartTest(t)
 
 		// Request without auth context
-		req := httptest.NewRequest(http.MethodGet, "/carts", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/carts", http.NoBody)
 		req.Header.Set("Content-Type", "application/json")
 
 		// Add logger to context
@@ -286,7 +286,7 @@ func TestAddItem(t *testing.T) {
 		requestBody, err := json.Marshal(addItemRequest)
 		assert.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodPost, "/carts/items", bytes.NewBuffer(requestBody))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/carts/items", bytes.NewBuffer(requestBody))
 		req.Header.Set("Content-Type", "application/json")
 
 		ctx := context.WithValue(req.Context(), middleware.LoggerKey, slog.Default())
@@ -462,7 +462,7 @@ func TestUpdateQuantity(t *testing.T) {
 		requestBody, err := json.Marshal(updateRequest)
 		assert.NoError(t, err)
 
-		req := httptest.NewRequest(http.MethodPut, "/carts/items", bytes.NewBuffer(requestBody))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPut, "/carts/items", bytes.NewBuffer(requestBody))
 		req.Header.Set("Content-Type", "application/json")
 
 		ctx := context.WithValue(req.Context(), middleware.LoggerKey, slog.Default())

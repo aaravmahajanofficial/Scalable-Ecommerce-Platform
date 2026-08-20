@@ -18,7 +18,11 @@ import (
 func TestNewProductRepo(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
+	})
 
 	repo := repository.NewProductRepo(db)
 	assert.NotNil(t, repo, "NewProductRepo should return a non-nil repository")
@@ -27,7 +31,11 @@ func TestNewProductRepo(t *testing.T) {
 func TestProductRepository(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
+	})
 
 	repo := repository.NewProductRepo(db)
 	ctx := t.Context()
