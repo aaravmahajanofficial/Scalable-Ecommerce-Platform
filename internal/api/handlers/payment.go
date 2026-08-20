@@ -7,10 +7,10 @@ import (
 	"strconv"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/middleware"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
+	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	service "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/services"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
+	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils/response"
 	"github.com/go-playground/validator/v10"
 )
@@ -47,7 +47,7 @@ func (h *PaymentHandler) CreatePayment() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized payment creation attempt: missing user claims")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}
@@ -56,7 +56,7 @@ func (h *PaymentHandler) CreatePayment() http.HandlerFunc {
 
 		// Decode the request body
 		var req models.PaymentRequest
-		if !utils.ParseAndValidate(r, w, &req, h.validator) {
+		if !apputils.ParseAndValidate(r, w, &req, h.validator) {
 			logger.Warn("Invalid create payment input")
 
 			return
@@ -68,7 +68,7 @@ func (h *PaymentHandler) CreatePayment() http.HandlerFunc {
 			logger.Warn("User attempted to create payment for another customer ID",
 				slog.String("requesterId", claims.UserID.String()),
 				slog.String("requestedCustomerID", req.CustomerID))
-			response.Error(w, errors.ForbiddenError("You can only make payments for your own orders"))
+			response.Error(w, apperrors.ForbiddenError("You can only make payments for your own orders"))
 
 			return
 		}
@@ -111,7 +111,7 @@ func (h *PaymentHandler) GetPayment() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized payment get attempt: missing user claims")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}
@@ -121,7 +121,7 @@ func (h *PaymentHandler) GetPayment() http.HandlerFunc {
 		idStr := r.PathValue("id")
 		if idStr == "" {
 			logger.Warn("Missing payment ID in path")
-			response.Error(w, errors.BadRequestError("Payment ID is required"))
+			response.Error(w, apperrors.BadRequestError("Payment ID is required"))
 
 			return
 		}
@@ -162,7 +162,7 @@ func (h *PaymentHandler) ListPayments() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized payment list attempt: missing user claims")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}
@@ -223,7 +223,7 @@ func (h *PaymentHandler) HandleStripeWebhook() http.HandlerFunc {
 		payload, err := io.ReadAll(r.Body)
 		if err != nil {
 			logger.Error("Error reading webhook body", slog.Any("error", err))
-			response.Error(w, errors.BadRequestError("Failed to read request body"))
+			response.Error(w, apperrors.BadRequestError("Failed to read request body"))
 
 			return
 		}
@@ -231,7 +231,7 @@ func (h *PaymentHandler) HandleStripeWebhook() http.HandlerFunc {
 		signature := r.Header.Get("Stripe-Signature")
 		if signature == "" {
 			logger.Error("Missing Stripe signature in webhook request")
-			response.Error(w, errors.BadRequestError("Stripe Signature is required"))
+			response.Error(w, apperrors.BadRequestError("Stripe Signature is required"))
 
 			return
 		}

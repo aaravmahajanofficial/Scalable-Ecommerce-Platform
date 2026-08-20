@@ -1,10 +1,11 @@
-package utils_test
+package apputils_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
+	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,12 +44,12 @@ func TestParseInt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, "/", nil)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/", http.NoBody)
 			assert.NoError(t, err)
 
 			req.SetPathValue("id", tt.paramValue)
 
-			id, err := utils.ParseInt(req, "id")
+			id, err := apputils.ParseInt(req, "id")
 
 			if tt.expectedError {
 				assert.Error(t, err)

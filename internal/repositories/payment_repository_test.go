@@ -21,7 +21,9 @@ func setupPaymentRepoTest(t *testing.T) (repository.PaymentRepository, sqlmock.S
 	require.NoError(t, err, "Failed to create sqlmock")
 
 	t.Cleanup(func() {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
 	})
 
 	repo := repository.NewPaymentRepository(db)
@@ -33,7 +35,11 @@ func setupPaymentRepoTest(t *testing.T) (repository.PaymentRepository, sqlmock.S
 func TestNewPaymentRepository(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	t.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Logf("failed to close mock db: %v", closeErr)
+		}
+	})
 
 	repo := repository.NewPaymentRepository(db)
 	assert.NotNil(t, repo, "Expected a non-nil repository instance")

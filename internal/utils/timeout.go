@@ -1,4 +1,5 @@
-package utils
+// Package apputils provides shared application utilities.
+package apputils
 
 import (
 	"context"
