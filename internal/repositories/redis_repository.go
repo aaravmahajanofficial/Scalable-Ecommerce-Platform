@@ -12,6 +12,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// timeNow allows mocking time.Now in tests
+var timeNow = time.Now
+
 type RateLimitRepository interface {
 	CheckLoginRateLimit(ctx context.Context, username string) (bool, int, int, error)
 }
@@ -64,7 +67,7 @@ func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username stri
 	// create a username key
 	key := "login_attempts:" + username
 
-	now := time.Now().Unix()
+	now := timeNow().Unix()
 
 	// This means only login attempts after 'this time' are counted.
 	windowStart := now - int64(r.cfg.RateConfig.WindowSize.Seconds())
