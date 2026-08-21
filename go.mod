@@ -10,7 +10,7 @@ require (
 	github.com/ilyakaznacheev/cleanenv v1.5.0
 	github.com/lib/pq v1.12.3
 	github.com/microcosm-cc/bluemonday v1.0.27
-	github.com/stretchr/testify v1.12.0
+	github.com/stretchr/testify v1.12.1
 	github.com/stripe/stripe-go/v86 v86.3.0
 	github.com/swaggo/http-swagger v1.3.4
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0
