@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const productTracerName = "ecommerce/productservice"
@@ -48,8 +49,7 @@ func (s *productService) CreateProduct(ctx context.Context, req *models.CreatePr
 
 	err := s.repo.CreateProduct(ctx, product)
 	if err != nil {
-		span.RecordError(err)
-		span.SetAttributes(attribute.Bool("db_error", true))
+		recordDBError(span, err)
 
 		return nil, appErrors.DatabaseError("Failed to create product").WithError(err)
 	}
@@ -68,8 +68,7 @@ func (s *productService) GetProductByID(ctx context.Context, id uuid.UUID) (*mod
 
 	product, err := s.repo.GetProductByID(ctx, id)
 	if err != nil {
-		span.RecordError(err)
-		span.SetAttributes(attribute.Bool("db.error", true))
+		recordDBError(span, err)
 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, appErrors.NotFoundError("Product not found").WithError(err)
@@ -90,8 +89,7 @@ func (s *productService) UpdateProduct(ctx context.Context, id uuid.UUID, req *m
 
 	product, err := s.repo.GetProductByID(ctx, id)
 	if err != nil {
-		span.RecordError(err)
-		span.SetAttributes(attribute.Bool("db.error", true))
+		recordDBError(span, err)
 
 		return nil, appErrors.NotFoundError("Product not found").WithError(err)
 	}
@@ -122,8 +120,7 @@ func (s *productService) UpdateProduct(ctx context.Context, id uuid.UUID, req *m
 
 	err = s.repo.UpdateProduct(ctx, product)
 	if err != nil {
-		span.RecordError(err)
-		span.SetAttributes(attribute.Bool("db.error", true))
+		recordDBError(span, err)
 
 		return nil, appErrors.DatabaseError("Failed to update product").WithError(err)
 	}
@@ -141,8 +138,7 @@ func (s *productService) ListProducts(ctx context.Context, page, pageSize int) (
 
 	products, total, err := s.repo.ListProducts(ctx, page, pageSize)
 	if err != nil {
-		span.RecordError(err)
-		span.SetAttributes(attribute.Bool("db.error", true))
+		recordDBError(span, err)
 
 		return nil, 0, appErrors.DatabaseError("Failed to fetch products").WithError(err)
 	}
@@ -152,4 +148,9 @@ func (s *productService) ListProducts(ctx context.Context, page, pageSize int) (
 	}
 
 	return products, total, nil
+}
+
+func recordDBError(span trace.Span, err error) {
+	span.RecordError(err)
+	span.SetAttributes(attribute.Bool("db.error", true))
 }
