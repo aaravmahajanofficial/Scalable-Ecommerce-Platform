@@ -86,7 +86,7 @@ sendgrid:
   FROM_NAME: "Test Service"
   SMSENABLED: true
 security:
-  JWT_KEY: "testjwtkey"
+  JWT_KEY: "dummy_jwt_key_for_testing"
   JWT_EXPIRY_HOURS: 48
 otel:
   SERVICE_NAME: "test-service"
@@ -164,7 +164,7 @@ cache:
 		t.Setenv("ENV", "production")
 		t.Setenv("PG_HOST", "prod-db")
 		t.Setenv("REDIS_HOST", "prod-redis")
-		t.Setenv("JWT_KEY", "prodjwtkey")
+		t.Setenv("JWT_KEY", "dummy_prod_jwt_key_for_testing")
 		t.Setenv("PG_USER", "produser")
 		t.Setenv("PG_PASSWORD", "prodpass")
 		t.Setenv("PG_DBNAME", "proddb")
@@ -179,7 +179,7 @@ cache:
 		assert.Equal(t, "prod-redis", cfg.RedisConnect.Host)
 		assert.Equal(t, "prodpass", cfg.Database.Password)
 		assert.Equal(t, "prodredispass", cfg.RedisConnect.Password)
-		assert.Equal(t, "prodjwtkey", cfg.Security.JWTKey)
+		assert.Equal(t, "dummy_prod_jwt_key_for_testing", cfg.Security.JWTKey)
 	})
 }
 
