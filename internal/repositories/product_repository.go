@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
+	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
@@ -28,7 +28,7 @@ func NewProductRepo(db *sql.DB) ProductRepository {
 }
 
 func (r *productRepository) CreateProduct(ctx context.Context, product *models.Product) error {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
 
 	query := `INSERT INTO products (category_id, name, description, price, stock_quantity, sku, status)
@@ -40,7 +40,7 @@ func (r *productRepository) CreateProduct(ctx context.Context, product *models.P
 }
 
 func (r *productRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
 
 	product := &models.Product{}
@@ -66,7 +66,7 @@ func (r *productRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*
 }
 
 func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Product, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
 
 	if len(ids) == 0 {
@@ -85,7 +85,7 @@ func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUI
 	if err != nil {
 		return nil, fmt.Errorf("querying database for products by ids: %w", err)
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var products []*models.Product
 	for rows.Next() {
@@ -102,7 +102,7 @@ func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 func (r *productRepository) UpdateProduct(ctx context.Context, product *models.Product) error {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
 
 	query := `
@@ -115,7 +115,7 @@ func (r *productRepository) UpdateProduct(ctx context.Context, product *models.P
 }
 
 func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error) {
-	dbCtx, cancel := utils.WithDBTimeout(ctx)
+	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
 
 	var total int
@@ -145,7 +145,7 @@ func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([
 		return nil, 0, err
 	}
 
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var products []*models.Product
 

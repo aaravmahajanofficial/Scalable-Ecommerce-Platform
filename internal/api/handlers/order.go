@@ -6,10 +6,10 @@ import (
 	"strconv"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/middleware"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
+	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	service "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/services"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
+	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils/response"
 	"github.com/go-playground/validator/v10"
 )
@@ -45,7 +45,7 @@ func (h *OrderHandler) CreateOrder() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order creation attempt")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}
@@ -54,7 +54,7 @@ func (h *OrderHandler) CreateOrder() http.HandlerFunc {
 
 		// Decode the request body, validate
 		var req models.CreateOrderRequest
-		if !utils.ParseAndValidate(r, w, &req, h.validator) {
+		if !apputils.ParseAndValidate(r, w, &req, h.validator) {
 			logger.Warn("Invalid create order input")
 
 			return
@@ -95,14 +95,14 @@ func (h *OrderHandler) GetOrder() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order access attempt: missing user claims")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}
 
 		logger = logger.With(slog.String("userID", claims.UserID.String()))
 
-		id, err := utils.ParseID(r, "id")
+		id, err := apputils.ParseID(r, "id")
 		if err != nil {
 			logger.Warn("Invalid order id", slog.String("error", err.Error()))
 			response.Error(w, err)
@@ -127,7 +127,7 @@ func (h *OrderHandler) GetOrder() http.HandlerFunc {
 			logger.Warn("Attempted to access another user's order",
 				slog.String("requesterId", claims.UserID.String()),
 				slog.String("ownerId", order.CustomerID.String()))
-			response.Error(w, errors.ForbiddenError("You don't have permission to access this order"))
+			response.Error(w, apperrors.ForbiddenError("You don't have permission to access this order"))
 
 			return
 		}
@@ -157,7 +157,7 @@ func (h *OrderHandler) ListOrders() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order list attempt: missing user claims")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}
@@ -219,14 +219,14 @@ func (h *OrderHandler) UpdateOrderStatus() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order status update attempt: missing user claims")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}
 
 		logger = logger.With(slog.String("updaterUserID", claims.UserID.String()))
 
-		id, err := utils.ParseID(r, "id")
+		id, err := apputils.ParseID(r, "id")
 		if err != nil {
 			logger.Warn("Invalid order id", slog.String("error", err.Error()))
 			response.Error(w, err)
@@ -238,7 +238,7 @@ func (h *OrderHandler) UpdateOrderStatus() http.HandlerFunc {
 
 		// Decode the request body
 		var req models.UpdateOrderStatusRequest
-		if !utils.ParseAndValidate(r, w, &req, h.validator) {
+		if !apputils.ParseAndValidate(r, w, &req, h.validator) {
 			logger.Warn("Invalid update order status input")
 
 			return

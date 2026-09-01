@@ -1,4 +1,5 @@
-package errors
+// Package apperrors provides application errors.
+package apperrors
 
 import (
 	"errors"
@@ -101,16 +102,15 @@ func ResourceExhaustedError(message string) *AppError {
 }
 
 func IsAppError(err error) (*AppError, bool) {
-	var appError *AppError
 
-	if errors.As(err, &appError) {
+	if appError, ok := errors.AsType[*AppError](err); ok {
 		return appError, true
 	}
 
 	return nil, false
 }
 
-// field validation error.
+// AddValidationError adds a field validation error.
 func AddValidationError(field, reason string) *AppError {
 	return ValidationError(fmt.Sprintf("Invalid field '%s': %s", field, reason))
 }

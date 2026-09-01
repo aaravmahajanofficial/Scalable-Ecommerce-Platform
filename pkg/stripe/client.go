@@ -1,3 +1,4 @@
+// Package stripe wraps the Stripe API.
 package stripe
 
 import (
@@ -5,18 +6,18 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/stripe/stripe-go/v81"
-	"github.com/stripe/stripe-go/v81/paymentintent"
-	"github.com/stripe/stripe-go/v81/paymentmethod"
-	"github.com/stripe/stripe-go/v81/refund"
-	"github.com/stripe/stripe-go/v81/webhook"
+	"github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86/paymentintent"
+	"github.com/stripe/stripe-go/v86/paymentmethod"
+	"github.com/stripe/stripe-go/v86/refund"
+	"github.com/stripe/stripe-go/v86/webhook"
 )
 
 type Event = stripe.Event
 
-// defines the methods that any of payment client must implement.
+// Client defines the methods that any payment client must implement.
 type Client interface {
-	CreatePaymentIntent(amount int64, currency string, description string, customerID string) (*stripe.PaymentIntent, error)
+	CreatePaymentIntent(amount int64, currency, description, customerID string) (*stripe.PaymentIntent, error)
 	CreatePaymentMethod(cardNumber, cardExpMonth, cardExpYear, cardCVC string) (*stripe.PaymentMethod, error)
 	CreatePaymentMethodFromToken(paymentMethodID string) (*stripe.PaymentMethod, error)
 	AttachPaymentMethodToIntent(paymentMethodID, paymentIntentID string) error
@@ -32,7 +33,7 @@ type stripeClient struct {
 
 // type paypalClient struct {}
 
-func NewStripeClient(apiKey string, webhookSecret string) Client {
+func NewStripeClient(apiKey, webhookSecret string) Client {
 	stripe.Key = apiKey
 
 	// since *stripeClient is impplementing Client, it will automatically get converted to the Client interface
@@ -40,9 +41,9 @@ func NewStripeClient(apiKey string, webhookSecret string) Client {
 }
 
 // PaymentIntent == "planned payment" or order waiting for payment.
-func (s *stripeClient) CreatePaymentIntent(amount int64, currency string, description string, customerID string) (*stripe.PaymentIntent, error) {
+func (s *stripeClient) CreatePaymentIntent(amount int64, currency, description, customerID string) (*stripe.PaymentIntent, error) {
 	params := &stripe.PaymentIntentParams{
-		Amount:      stripe.Int64(amount),
+		Amount:      new(amount),
 		Currency:    stripe.String(currency),
 		Description: stripe.String(description),
 	}
@@ -55,7 +56,7 @@ func (s *stripeClient) CreatePaymentIntent(amount int64, currency string, descri
 }
 
 // CreatePaymentMethod implements Client.
-func (s *stripeClient) CreatePaymentMethod(cardNumber string, cardExpMonth string, cardExpYear string, cardCVC string) (*stripe.PaymentMethod, error) {
+func (s *stripeClient) CreatePaymentMethod(cardNumber, cardExpMonth, cardExpYear, cardCVC string) (*stripe.PaymentMethod, error) {
 	expMonth, err := strconv.ParseInt(cardExpMonth, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid card expiration month: %w", err)
@@ -70,8 +71,8 @@ func (s *stripeClient) CreatePaymentMethod(cardNumber string, cardExpMonth strin
 		Type: stripe.String("card"),
 		Card: &stripe.PaymentMethodCardParams{
 			Number:   stripe.String(cardNumber),
-			ExpMonth: stripe.Int64(expMonth),
-			ExpYear:  stripe.Int64(expYear),
+			ExpMonth: new(expMonth),
+			ExpYear:  new(expYear),
 			CVC:      stripe.String(cardCVC),
 		},
 	}
@@ -85,7 +86,7 @@ func (s *stripeClient) CreatePaymentMethodFromToken(paymentMethodID string) (*st
 }
 
 // AttachPaymentMethodToIntent implements Client.
-func (s *stripeClient) AttachPaymentMethodToIntent(paymentMethodID string, paymentIntentID string) error {
+func (s *stripeClient) AttachPaymentMethodToIntent(paymentMethodID, paymentIntentID string) error {
 	params := &stripe.PaymentIntentParams{
 		PaymentMethod: stripe.String(paymentMethodID),
 	}
@@ -108,7 +109,7 @@ func (s *stripeClient) ConfirmPaymentIntent(paymentIntentID string) (*stripe.Pay
 func (s *stripeClient) RefundPayment(paymentIntentID string, amount int64) (*stripe.Refund, error) {
 	params := &stripe.RefundParams{
 		PaymentIntent: stripe.String(paymentIntentID),
-		Amount:        stripe.Int64(amount),
+		Amount:        new(amount),
 	}
 
 	return refund.New(params)

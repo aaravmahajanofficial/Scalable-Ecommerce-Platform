@@ -1,3 +1,4 @@
+// Package health provides liveness and readiness HTTP handlers.
 package health
 
 import (
@@ -5,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -14,17 +16,17 @@ import (
 	"github.com/hellofresh/health-go/v5/checks/postgres"
 	healthRedis "github.com/hellofresh/health-go/v5/checks/redis"
 	"github.com/redis/go-redis/v9"
-	"github.com/stripe/stripe-go/v81"
-	"github.com/stripe/stripe-go/v81/balance"
+	"github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86/balance"
 )
 
-type HealthEndpoint struct {
+type Endpoint struct {
 	DB           *sql.DB
 	RedisClient  *redis.Client
 	StripeClient *stripeClient.Client
 }
 
-func NewReadinessHandler(cfg *config.Config, healthEndpoint *HealthEndpoint) (http.Handler, error) {
+func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Handler, error) {
 	h, err := health.New(
 
 		health.WithComponent(health.Component{
@@ -91,8 +93,10 @@ func NewReadinessHandler(cfg *config.Config, healthEndpoint *HealthEndpoint) (ht
 
 func NewLivenessHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "text/plain")
-		fmt.Fprintf(w, "Service is alive. Time: %s\n", time.Now().Format(time.RFC3339))
+		w.WriteHeader(http.StatusOK)
+		if _, err := fmt.Fprintf(w, "Service is alive. Time: %s\n", time.Now().Format(time.RFC3339)); err != nil {
+			slog.Error("failed to write liveness response", slog.Any("error", err))
+		}
 	}
 }

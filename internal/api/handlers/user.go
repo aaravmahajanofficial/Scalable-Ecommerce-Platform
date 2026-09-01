@@ -1,3 +1,4 @@
+// Package handlers provides HTTP handlers.
 package handlers
 
 import (
@@ -5,10 +6,10 @@ import (
 	"net/http"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/middleware"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
+	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 	models "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	service "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/services"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
+	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils/response"
 	"github.com/go-playground/validator/v10"
 )
@@ -42,7 +43,7 @@ func (h *UserHandler) Register() http.HandlerFunc {
 		var req models.RegisterRequest
 
 		// Validate Input
-		if !utils.ParseAndValidate(r, w, &req, h.validator) {
+		if !apputils.ParseAndValidate(r, w, &req, h.validator) {
 			return
 		}
 
@@ -82,7 +83,7 @@ func (h *UserHandler) Login() http.HandlerFunc {
 		var req models.LoginRequest
 
 		// Validate Input
-		if !utils.ParseAndValidate(r, w, &req, h.validator) {
+		if !apputils.ParseAndValidate(r, w, &req, h.validator) {
 			return
 		}
 
@@ -98,13 +99,13 @@ func (h *UserHandler) Login() http.HandlerFunc {
 		if !resp.Success {
 			if resp.RetryAfter > 0 {
 				logger.Warn("Too many login attempts", slog.String("email", req.Email))
-				response.Error(w, errors.TooManyRequestsError("Too many login attempts").WithDetail("Please try again later"))
+				response.Error(w, apperrors.TooManyRequestsError("Too many login attempts").WithDetail("Please try again later"))
 
 				return
 			}
 
 			logger.Warn("Invalid credentials provided", slog.String("email", req.Email))
-			response.Error(w, errors.UnauthorizedError("Invalid email or password"))
+			response.Error(w, apperrors.UnauthorizedError("Invalid email or password"))
 
 			return
 		}
@@ -134,7 +135,7 @@ func (h *UserHandler) Profile() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized access attempt: missing user claims in context")
-			response.Error(w, errors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
 
 			return
 		}

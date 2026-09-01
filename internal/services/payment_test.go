@@ -13,14 +13,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v86"
 )
 
 func TestNewPaymentService(t *testing.T) {
 	mockRepo := repoMocks.NewMockPaymentRepository(t)
 	mockStripeClient := stripeMocks.NewMockClient(t)
-	service := service.NewPaymentService(mockRepo, mockStripeClient)
-	assert.NotNil(t, service)
+	svc := service.NewPaymentService(mockRepo, mockStripeClient)
+	assert.NotNil(t, svc)
 }
 
 func TestCreatePayment(t *testing.T) {
@@ -384,7 +384,7 @@ func TestProcessWebhook(t *testing.T) {
 		ID:   "evt_456",
 		Type: "payment_intent.payment_failed",
 		Data: &stripe.EventData{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"id": stripePaymentIntentID,
 			},
 		},
@@ -403,14 +403,14 @@ func TestProcessWebhook(t *testing.T) {
 		ID:   "evt_000",
 		Type: "customer.created",
 		Data: &stripe.EventData{
-			Object: map[string]interface{}{"id": "cus_123"},
+			Object: map[string]any{"id": "cus_123"},
 		},
 	}
 	eventMissingID := stripe.Event{
 		ID:   "evt_bad",
 		Type: "payment_intent.succeeded",
 		Data: &stripe.EventData{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"amount": 1000,
 			},
 		},
@@ -585,7 +585,7 @@ func TestProcessWebhook(t *testing.T) {
 		eventMissingIDFailed := stripe.Event{
 			ID:   "evt_bad_fail",
 			Type: "payment_intent.payment_failed",
-			Data: &stripe.EventData{Object: map[string]interface{}{"reason": "card_declined"}},
+			Data: &stripe.EventData{Object: map[string]any{"reason": "card_declined"}},
 		}
 		payloadMissingIDFailed := []byte(`{"id": "evt_bad_fail", "type": "payment_intent.payment_failed", "data": {"object": {"reason": "card_declined"}}}`)
 		mockStripeClient.On("VerifyWebhookSignature", payloadMissingIDFailed, signature).Return(eventMissingIDFailed, nil).Once()

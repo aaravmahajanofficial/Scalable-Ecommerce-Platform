@@ -1,3 +1,4 @@
+// Package cache provides Redis-backed caching.
 package cache
 
 import (
@@ -12,8 +13,8 @@ import (
 )
 
 type Cache interface {
-	Get(ctx context.Context, key string, value interface{}) (bool, error)
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
+	Get(ctx context.Context, key string, value any) (bool, error)
+	Set(ctx context.Context, key string, value any, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
 	Close() error
 }
@@ -47,7 +48,7 @@ func (r *redisCache) Get(ctx context.Context, key string, value any) (bool, erro
 	return true, nil
 }
 
-func (r *redisCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+func (r *redisCache) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("failed to marshal value for key %s: %w", key, err)
@@ -78,7 +79,7 @@ func (r *redisCache) Close() error {
 	return nil
 }
 
-func Key(prefix string, id string) string {
+func Key(prefix, id string) string {
 	return prefix + ":" + id
 }
 

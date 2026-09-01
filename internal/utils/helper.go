@@ -1,8 +1,10 @@
-package utils
+// Package apputils provides shared application utilities.
+package apputils
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,7 +12,7 @@ import (
 	"strconv"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/middleware"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
+	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils/response"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -18,26 +20,29 @@ import (
 
 func DecodeJSONBody(r *http.Request, dest any) error {
 	logger := middleware.LoggerFromContext(r.Context())
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			logger.Error("Failed to close request body", slog.Any("error", err))
+		}
+	}()
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		logger.Error("Failed to read request body", slog.Any("error", err))
 
-		return errors.BadRequestError("Failed to read request body").WithError(err)
+		return apperrors.BadRequestError("Failed to read request body").WithError(err)
 	}
-
-	defer r.Body.Close()
 
 	if len(body) == 0 {
 		logger.Warn("Empty request body received")
 
-		return errors.BadRequestError("Request body cannot be empty").WithError(err)
+		return apperrors.BadRequestError("Request body cannot be empty").WithError(err)
 	}
 
 	if err := json.Unmarshal(body, dest); err != nil {
 		logger.Error("Failed to parse request JSON", slog.Any("error", err))
 
-		return errors.BadRequestError("Invalid JSON format").WithError(err)
+		return apperrors.BadRequestError("Invalid JSON format").WithError(err)
 	}
 
 	return nil
@@ -47,7 +52,7 @@ func ValidateStruct(ctx context.Context, validate *validator.Validate, data any)
 	logger := middleware.LoggerFromContext(ctx)
 
 	if err := validate.Struct(data); err != nil {
-		if validationErrs, ok := err.(validator.ValidationErrors); ok {
+		if validationErrs, ok := errors.AsType[validator.ValidationErrors](err); ok {
 			logger.Warn("User input validation failed", slog.String("error", validationErrs.Error()))
 
 			var details []string
@@ -55,12 +60,12 @@ func ValidateStruct(ctx context.Context, validate *validator.Validate, data any)
 				details = append(details, formatValidationError(verr))
 			}
 
-			return errors.ValidationError("Validation Failed").WithDetail(fmt.Sprintf("%v", details))
-		} else {
-			logger.Error("Unexpected validation error", slog.String("error", err.Error()))
-
-			return errors.InternalError("Unexpected validation error").WithError(err)
+			return apperrors.ValidationError("Validation Failed").WithDetail(fmt.Sprintf("%v", details))
 		}
+
+		logger.Error("Unexpected validation error", slog.String("error", err.Error()))
+
+		return apperrors.InternalError("Unexpected validation error").WithError(err)
 	}
 
 	return nil
@@ -106,7 +111,7 @@ func ParseInt(r *http.Request, paramName string) (int64, error) {
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		return 0, errors.BadRequestError(fmt.Sprintf("Invalid %s ID", paramName))
+		return 0, apperrors.BadRequestError(fmt.Sprintf("Invalid %s ID", paramName))
 	}
 
 	return id, nil
@@ -116,12 +121,12 @@ func ParseID(r *http.Request, paramName string) (uuid.UUID, error) {
 	idStr := r.PathValue(paramName)
 
 	if idStr == "" {
-		return uuid.Nil, errors.BadRequestError("Missing path parameter: " + paramName)
+		return uuid.Nil, apperrors.BadRequestError("Missing path parameter: " + paramName)
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return uuid.Nil, errors.BadRequestError(fmt.Sprintf("Invalid %s ID format: must be a UUID", paramName)).WithError(err)
+		return uuid.Nil, apperrors.BadRequestError(fmt.Sprintf("Invalid %s ID format: must be a UUID", paramName)).WithError(err)
 	}
 
 	return id, nil
