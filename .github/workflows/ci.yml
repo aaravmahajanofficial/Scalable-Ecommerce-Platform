@@ -1,3 +1,4 @@
+```yaml
 name: CI
 
 on:
@@ -65,17 +66,10 @@ jobs:
           cache: true
 
       - name: Run tests with race detection
-        run: go test -race -cover -coverprofile=coverage.out -parallel=8 ./...
+        run: go test -race -cover -coverprofile=coverage.txt -parallel=8 ./...
 
       - name: Generate coverage report
-        run: go tool cover -func=coverage.out
-
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-report
-          path: coverage.out
-          retention-days: 7
+        run: go tool cover -func=coverage.txt
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
@@ -114,3 +108,4 @@ jobs:
           name: scalable-ecommerce-platform-linux-amd64
           path: ./bin/scalable-ecommerce-platform
           retention-days: 7
+```
