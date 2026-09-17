@@ -59,7 +59,7 @@ func TestSetupAPIRouter(t *testing.T) {
 	}
 
 	for _, rt := range routes {
-		req, err := http.NewRequest(rt.method, rt.path, nil)
+		req, err := http.NewRequest(rt.method, rt.path, http.NoBody)
 		assert.NoError(t, err)
 
 		handler, pattern := mux.Handler(req)
