@@ -23,7 +23,7 @@ func TestLoggingMiddleware(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/resource", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/resource", http.NoBody)
 		req.Header.Set("X-Request-ID", existingID)
 		rr := httptest.NewRecorder()
 
@@ -42,7 +42,7 @@ func TestLoggingMiddleware(t *testing.T) {
 			contextLogger = middleware.LoggerFromContext(r.Context())
 		})
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/orders", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/orders", http.NoBody)
 		rr := httptest.NewRecorder()
 
 		handler := middleware.Logging(nextHandler)
@@ -65,7 +65,7 @@ func TestLoggingMiddleware(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/users", http.NoBody)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/users", http.NoBody)
 		rr := httptest.NewRecorder()
 
 		handler := middleware.Logging(nextHandler)
