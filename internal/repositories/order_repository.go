@@ -65,7 +65,7 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 	return nil
 }
 
-// Get the order items.
+// GetOrderByID retrieves an order by its ID along with its associated order items.
 func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
 	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
@@ -95,14 +95,24 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to unmarshal shipping address: %w", err)
 	}
 
-	// Get the order items
-	query = `
+	items, err := r.getOrderItemsByID(dbCtx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	order.Items = items
+
+	return order, nil
+}
+
+func (r *orderRepository) getOrderItemsByID(ctx context.Context, orderID uuid.UUID) ([]models.OrderItem, error) {
+	query := `
 		SELECT id, product_id, quantity, unit_price, created_at
 		FROM order_items
 		WHERE order_id = $1
 	`
 
-	rows, err := r.DB.QueryContext(dbCtx, query, id)
+	rows, err := r.DB.QueryContext(ctx, query, orderID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("querying database: %w", err)
@@ -123,14 +133,12 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 			return nil, fmt.Errorf("failed to scan order item: %w", err)
 		}
 
-		item.OrderID = order.ID
+		item.OrderID = orderID
 
 		items = append(items, item)
 	}
 
-	order.Items = items
-
-	return order, nil
+	return items, nil
 }
 
 // List the orders of the customer, along with pagination
