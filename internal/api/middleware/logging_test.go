@@ -23,7 +23,7 @@ func TestLoggingMiddleware(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/api/v1/resource", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/resource", http.NoBody)
 		req.Header.Set("X-Request-ID", existingID)
 		rr := httptest.NewRecorder()
 
@@ -38,11 +38,11 @@ func TestLoggingMiddleware(t *testing.T) {
 	t.Run("Missing X-Request-ID Header", func(t *testing.T) {
 		var contextLogger *slog.Logger
 
-		nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextHandler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			contextLogger = middleware.LoggerFromContext(r.Context())
 		})
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/orders", nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/orders", http.NoBody)
 		rr := httptest.NewRecorder()
 
 		handler := middleware.Logging(nextHandler)
@@ -59,13 +59,13 @@ func TestLoggingMiddleware(t *testing.T) {
 	})
 
 	t.Run("Custom Status Code Propagation", func(t *testing.T) {
-		nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
 			_, err := w.Write([]byte(`{"created": true}`))
 			require.NoError(t, err)
 		})
 
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/users", nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/users", http.NoBody)
 		rr := httptest.NewRecorder()
 
 		handler := middleware.Logging(nextHandler)
