@@ -23,19 +23,19 @@ func (m *mockStripeBackend) Call(method, path, key string, params stripe.ParamsC
 	return nil
 }
 
-func (m *mockStripeBackend) CallStreaming(method, path, key string, params stripe.ParamsContainer, v stripe.StreamingLastResponseSetter) error {
+func (m *mockStripeBackend) CallStreaming(_, _, _ string, _ stripe.ParamsContainer, _ stripe.StreamingLastResponseSetter) error {
 	return nil
 }
 
-func (m *mockStripeBackend) CallRaw(method, path, key string, body []byte, params *stripe.Params, v stripe.LastResponseSetter) error {
+func (m *mockStripeBackend) CallRaw(_, _, _ string, _ []byte, _ *stripe.Params, _ stripe.LastResponseSetter) error {
 	return nil
 }
 
-func (m *mockStripeBackend) CallMultipart(method, path, key, boundary string, body *bytes.Buffer, params *stripe.Params, v stripe.LastResponseSetter) error {
+func (m *mockStripeBackend) CallMultipart(_, _, _, _ string, _ *bytes.Buffer, _ *stripe.Params, _ stripe.LastResponseSetter) error {
 	return nil
 }
 
-func (m *mockStripeBackend) SetMaxNetworkRetries(maxNetworkRetries int64) {}
+func (m *mockStripeBackend) SetMaxNetworkRetries(_ int64) {}
 
 func setupTestBackend(t *testing.T, callFn func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error) {
 	t.Helper()
@@ -63,7 +63,7 @@ func TestNewStripeClient(t *testing.T) {
 
 func TestCreatePaymentIntent(t *testing.T) {
 	t.Run("success with customer ID", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(method, path, _ string, _ stripe.ParamsContainer, v stripe.LastResponseSetter) error {
 			assert.Equal(t, "POST", method)
 			assert.Equal(t, "/v1/payment_intents", path)
 			if pi, ok := v.(*stripe.PaymentIntent); ok {
@@ -82,7 +82,7 @@ func TestCreatePaymentIntent(t *testing.T) {
 	})
 
 	t.Run("success without customer ID", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(_, _, _ string, _ stripe.ParamsContainer, v stripe.LastResponseSetter) error {
 			if pi, ok := v.(*stripe.PaymentIntent); ok {
 				pi.ID = "pi_456"
 			}
@@ -97,7 +97,7 @@ func TestCreatePaymentIntent(t *testing.T) {
 	})
 
 	t.Run("backend error", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(_, _, _ string, _ stripe.ParamsContainer, _ stripe.LastResponseSetter) error {
 			return errors.New("stripe API error")
 		})
 
@@ -126,7 +126,7 @@ func TestCreatePaymentMethod(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(method, path, _ string, _ stripe.ParamsContainer, v stripe.LastResponseSetter) error {
 			assert.Equal(t, "POST", method)
 			assert.Equal(t, "/v1/payment_methods", path)
 			if pm, ok := v.(*stripe.PaymentMethod); ok {
@@ -143,7 +143,7 @@ func TestCreatePaymentMethod(t *testing.T) {
 	})
 
 	t.Run("backend error", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(_, _, _ string, _ stripe.ParamsContainer, _ stripe.LastResponseSetter) error {
 			return errors.New("backend error")
 		})
 
@@ -155,7 +155,7 @@ func TestCreatePaymentMethod(t *testing.T) {
 
 func TestCreatePaymentMethodFromToken(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(method, path, _ string, _ stripe.ParamsContainer, v stripe.LastResponseSetter) error {
 			assert.Equal(t, "GET", method)
 			assert.Equal(t, "/v1/payment_methods/pm_token_123", path)
 			if pm, ok := v.(*stripe.PaymentMethod); ok {
@@ -172,7 +172,7 @@ func TestCreatePaymentMethodFromToken(t *testing.T) {
 	})
 
 	t.Run("backend error", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(_, _, _ string, _ stripe.ParamsContainer, _ stripe.LastResponseSetter) error {
 			return errors.New("backend error")
 		})
 
@@ -184,7 +184,7 @@ func TestCreatePaymentMethodFromToken(t *testing.T) {
 
 func TestAttachPaymentMethodToIntent(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(method, path, _ string, _ stripe.ParamsContainer, _ stripe.LastResponseSetter) error {
 			assert.Equal(t, "POST", method)
 			assert.Equal(t, "/v1/payment_intents/pi_123", path)
 			return nil
@@ -196,7 +196,7 @@ func TestAttachPaymentMethodToIntent(t *testing.T) {
 	})
 
 	t.Run("backend error", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(_, _, _ string, _ stripe.ParamsContainer, _ stripe.LastResponseSetter) error {
 			return errors.New("backend error")
 		})
 
@@ -208,7 +208,7 @@ func TestAttachPaymentMethodToIntent(t *testing.T) {
 
 func TestConfirmPaymentIntent(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(method, path, _ string, _ stripe.ParamsContainer, v stripe.LastResponseSetter) error {
 			assert.Equal(t, "POST", method)
 			assert.Equal(t, "/v1/payment_intents/pi_123/confirm", path)
 			if pi, ok := v.(*stripe.PaymentIntent); ok {
@@ -226,7 +226,7 @@ func TestConfirmPaymentIntent(t *testing.T) {
 	})
 
 	t.Run("backend error", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(_, _, _ string, _ stripe.ParamsContainer, _ stripe.LastResponseSetter) error {
 			return errors.New("backend error")
 		})
 
@@ -238,7 +238,7 @@ func TestConfirmPaymentIntent(t *testing.T) {
 
 func TestRefundPayment(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(method, path, _ string, _ stripe.ParamsContainer, v stripe.LastResponseSetter) error {
 			assert.Equal(t, "POST", method)
 			assert.Equal(t, "/v1/refunds", path)
 			if re, ok := v.(*stripe.Refund); ok {
@@ -256,7 +256,7 @@ func TestRefundPayment(t *testing.T) {
 	})
 
 	t.Run("backend error", func(t *testing.T) {
-		setupTestBackend(t, func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+		setupTestBackend(t, func(_, _, _ string, _ stripe.ParamsContainer, _ stripe.LastResponseSetter) error {
 			return errors.New("backend error")
 		})
 
@@ -284,7 +284,7 @@ func TestVerifyWebhookSignature(t *testing.T) {
 
 	t.Run("valid payload and signature", func(t *testing.T) {
 		secret := "whsec_test_secret"
-		payload := []byte(fmt.Sprintf(`{"id": "evt_123", "object": "event", "type": "payment_intent.succeeded", "api_version": "%s"}`, stripe.APIVersion))
+		payload := []byte(fmt.Sprintf(`{"id": "evt_123", "object": "event", "type": "payment_intent.succeeded", "api_version": %q}`, stripe.APIVersion))
 		signedPayload := webhook.GenerateTestSignedPayload(&webhook.UnsignedPayload{
 			Payload:   payload,
 			Secret:    secret,
