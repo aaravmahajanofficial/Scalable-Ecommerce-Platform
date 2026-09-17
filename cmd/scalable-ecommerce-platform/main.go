@@ -270,12 +270,7 @@ func main() {
 		}
 	}()
 
-	// Swagger setup
-	swaggerHost := cfg.HTTPServer.Addr
-	if swaggerHost == "" {
-		swaggerHost = "local:8085"
-		slog.Warn("Server address not found in config (cfg.Addr), defaulting Swagger host to " + swaggerHost)
-	}
+	swaggerHost := getSwaggerHost(cfg)
 
 	// --- Redis Client Initialization ---
 	redisClient, err := repository.NewRedisClient(cfg)
@@ -321,13 +316,26 @@ func main() {
 	router := setupRouter(cfg, repos, jwtKey, stripeClient, sendGridClient, swaggerHost)
 
 	// Setup http server
-	server := &http.Server{
+	server := newServer(cfg, router)
+
+	runServer(server, cfg.HTTPServer.GracefulShutdownTimeout)
+}
+
+func getSwaggerHost(cfg *config.Config) string {
+	swaggerHost := cfg.HTTPServer.Addr
+	if swaggerHost == "" {
+		swaggerHost = "local:8085"
+		slog.Warn("Server address not found in config (cfg.Addr), defaulting Swagger host to " + swaggerHost)
+	}
+	return swaggerHost
+}
+
+func newServer(cfg *config.Config, handler http.Handler) *http.Server {
+	return &http.Server{
 		Addr:         cfg.HTTPServer.Addr,
-		Handler:      router,
+		Handler:      handler,
 		ReadTimeout:  cfg.HTTPServer.ReadTimeout,
 		WriteTimeout: cfg.HTTPServer.WriteTimeout,
 		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
 	}
-
-	runServer(server, cfg.HTTPServer.GracefulShutdownTimeout)
 }
