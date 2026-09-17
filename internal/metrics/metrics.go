@@ -41,9 +41,9 @@ var (
 
 func registerCollector(c prometheus.Collector, name string) {
 	if err := prometheus.Register(c); err != nil {
-		if _, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
+		if are, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
 			slog.Debug(name+" registration skipped (already registered)",
-				slog.String("error", err.Error()))
+				slog.String("error", are.Error()))
 		} else {
 			slog.Error("Failed to register "+name,
 				slog.String("error", err.Error()))
