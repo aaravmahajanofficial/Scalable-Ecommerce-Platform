@@ -2,7 +2,6 @@
 package metrics
 
 import (
-	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -41,8 +40,7 @@ var (
 
 func registerCollector(c prometheus.Collector, name string) {
 	if err := prometheus.Register(c); err != nil {
-		var are prometheus.AlreadyRegisteredError
-		if errors.As(err, &are) {
+		if _, ok := err.(prometheus.AlreadyRegisteredError); ok {
 			slog.Debug(name+" registration skipped (already registered)",
 				slog.String("error", err.Error()))
 		} else {

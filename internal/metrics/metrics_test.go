@@ -42,12 +42,13 @@ func TestRegisterCollector(t *testing.T) {
 }
 
 func TestMiddleware(t *testing.T) {
-	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("OK"))
+		_, err := w.Write([]byte("OK"))
+		assert.NoError(t, err)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test/path", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test/path", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -56,7 +57,7 @@ func TestMiddleware(t *testing.T) {
 	assert.Equal(t, "OK", rec.Body.String())
 
 	// Test path pattern matching for id
-	reqWithID := httptest.NewRequest(http.MethodGet, "/users/123", nil)
+	reqWithID := httptest.NewRequest(http.MethodGet, "/users/123", http.NoBody)
 	reqWithID.SetPathValue("id", "123")
 	recWithID := httptest.NewRecorder()
 
@@ -64,7 +65,7 @@ func TestMiddleware(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recWithID.Code)
 
 	// Test path pattern matching for ...
-	reqWithWildcard := httptest.NewRequest(http.MethodGet, "/files/a/b/c", nil)
+	reqWithWildcard := httptest.NewRequest(http.MethodGet, "/files/a/b/c", http.NoBody)
 	reqWithWildcard.SetPathValue("...", "a/b/c")
 	recWithWildcard := httptest.NewRecorder()
 
@@ -76,7 +77,7 @@ func TestHandler(t *testing.T) {
 	h := Handler()
 	assert.NotNil(t, h)
 
-	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req := httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	h.ServeHTTP(rec, req)
