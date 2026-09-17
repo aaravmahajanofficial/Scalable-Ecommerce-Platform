@@ -64,7 +64,7 @@ type MockProductRepository_CreateProduct_Call struct {
 // CreateProduct is a helper method to define mock.On call
 //   - ctx
 //   - product
-func (_e *MockProductRepository_Expecter) CreateProduct(ctx interface{}, product interface{}) *MockProductRepository_CreateProduct_Call {
+func (_e *MockProductRepository_Expecter) CreateProduct(ctx any, product any) *MockProductRepository_CreateProduct_Call {
 	return &MockProductRepository_CreateProduct_Call{Call: _e.mock.On("CreateProduct", ctx, product)}
 }
 
@@ -121,7 +121,7 @@ type MockProductRepository_GetProductByID_Call struct {
 // GetProductByID is a helper method to define mock.On call
 //   - ctx
 //   - id
-func (_e *MockProductRepository_Expecter) GetProductByID(ctx interface{}, id interface{}) *MockProductRepository_GetProductByID_Call {
+func (_e *MockProductRepository_Expecter) GetProductByID(ctx any, id any) *MockProductRepository_GetProductByID_Call {
 	return &MockProductRepository_GetProductByID_Call{Call: _e.mock.On("GetProductByID", ctx, id)}
 }
 
@@ -171,7 +171,7 @@ type MockProductRepository_GetProductsByIDs_Call struct {
 }
 
 // GetProductsByIDs is a helper method to define mock.On call
-func (_e *MockProductRepository_Expecter) GetProductsByIDs(ctx interface{}, ids interface{}) *MockProductRepository_GetProductsByIDs_Call {
+func (_e *MockProductRepository_Expecter) GetProductsByIDs(ctx any, ids any) *MockProductRepository_GetProductsByIDs_Call {
 	return &MockProductRepository_GetProductsByIDs_Call{Call: _e.mock.On("GetProductsByIDs", ctx, ids)}
 }
 
@@ -235,7 +235,7 @@ type MockProductRepository_ListProducts_Call struct {
 //   - ctx
 //   - page
 //   - size
-func (_e *MockProductRepository_Expecter) ListProducts(ctx interface{}, page interface{}, size interface{}) *MockProductRepository_ListProducts_Call {
+func (_e *MockProductRepository_Expecter) ListProducts(ctx any, page any, size any) *MockProductRepository_ListProducts_Call {
 	return &MockProductRepository_ListProducts_Call{Call: _e.mock.On("ListProducts", ctx, page, size)}
 }
 
@@ -281,7 +281,7 @@ type MockProductRepository_UpdateProduct_Call struct {
 // UpdateProduct is a helper method to define mock.On call
 //   - ctx
 //   - product
-func (_e *MockProductRepository_Expecter) UpdateProduct(ctx interface{}, product interface{}) *MockProductRepository_UpdateProduct_Call {
+func (_e *MockProductRepository_Expecter) UpdateProduct(ctx any, product any) *MockProductRepository_UpdateProduct_Call {
 	return &MockProductRepository_UpdateProduct_Call{Call: _e.mock.On("UpdateProduct", ctx, product)}
 }
 
@@ -325,7 +325,7 @@ type MockProductRepository_UpdateProductStockBatch_Call struct {
 }
 
 // UpdateProductStockBatch is a helper method to define mock.On call
-func (_e *MockProductRepository_Expecter) UpdateProductStockBatch(ctx interface{}, products interface{}) *MockProductRepository_UpdateProductStockBatch_Call {
+func (_e *MockProductRepository_Expecter) UpdateProductStockBatch(ctx any, products any) *MockProductRepository_UpdateProductStockBatch_Call {
 	return &MockProductRepository_UpdateProductStockBatch_Call{Call: _e.mock.On("UpdateProductStockBatch", ctx, products)}
 }
 
@@ -342,6 +342,52 @@ func (_c *MockProductRepository_UpdateProductStockBatch_Call) Return(err error) 
 }
 
 func (_c *MockProductRepository_UpdateProductStockBatch_Call) RunAndReturn(run func(ctx context.Context, products []*models.Product) error) *MockProductRepository_UpdateProductStockBatch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdateProducts provides a mock function for the type MockProductRepository
+func (_mock *MockProductRepository) UpdateProducts(ctx context.Context, products []*models.Product) error {
+	ret := _mock.Called(ctx, products)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateProducts")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []*models.Product) error); ok {
+		r0 = returnFunc(ctx, products)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockProductRepository_UpdateProducts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method "UpdateProducts"
+type MockProductRepository_UpdateProducts_Call struct {
+	*mock.Call
+}
+
+// UpdateProducts is a helper method to define mock.On call
+//   - ctx
+//   - products
+func (_e *MockProductRepository_Expecter) UpdateProducts(ctx any, products any) *MockProductRepository_UpdateProducts_Call {
+	return &MockProductRepository_UpdateProducts_Call{Call: _e.mock.On("UpdateProducts", ctx, products)}
+}
+
+func (_c *MockProductRepository_UpdateProducts_Call) Run(run func(ctx context.Context, products []*models.Product)) *MockProductRepository_UpdateProducts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].([]*models.Product))
+	})
+	return _c
+}
+
+func (_c *MockProductRepository_UpdateProducts_Call) Return(err error) *MockProductRepository_UpdateProducts_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockProductRepository_UpdateProducts_Call) RunAndReturn(run func(ctx context.Context, products []*models.Product) error) *MockProductRepository_UpdateProducts_Call {
 	_c.Call.Return(run)
 	return _c
 }
