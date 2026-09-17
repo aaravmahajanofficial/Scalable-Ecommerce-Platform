@@ -24,7 +24,7 @@ func TestCreateTestRequestWithContext(t *testing.T) {
 		bodyContent := `{"name":"Test Product"}`
 		body := strings.NewReader(bodyContent)
 		pathParams := map[string]string{
-			"id":     "123",
+			"id":       "123",
 			"category": "electronics",
 		}
 
