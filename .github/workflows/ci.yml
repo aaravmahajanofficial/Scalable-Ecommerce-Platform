@@ -62,10 +62,10 @@ jobs:
           cache: true
 
       - name: Run tests with race detection
-        run: go test -race -cover -coverprofile=coverage.out -parallel=8 ./...
+        run: go test -race -cover -coverprofile=coverage.txt -parallel=8 ./...
 
       - name: Generate coverage report
-        run: go tool cover -func=coverage.out
+        run: go tool cover -func=coverage.txt
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v7
@@ -73,6 +73,11 @@ jobs:
           name: coverage-report
           path: coverage.out
           retention-days: 7
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   build:
     name: Build
