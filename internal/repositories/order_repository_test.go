@@ -711,13 +711,16 @@ func TestUpdatePaymentStatus(t *testing.T) {
 	})
 }
 
-
 func BenchmarkCreateOrder(b *testing.B) {
 	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
 	if err != nil {
 		b.Fatalf("failed to create sqlmock: %v", err)
 	}
-	defer func() { _ = db.Close() }()
+	b.Cleanup(func() {
+		if closeErr := db.Close(); closeErr != nil {
+			b.Logf("failed to close mock db: %v", closeErr)
+		}
+	})
 
 	repo := repository.NewOrderRepository(db)
 	ctx := context.Background()
@@ -728,7 +731,7 @@ func BenchmarkCreateOrder(b *testing.B) {
 
 	numItems := 10
 	items := make([]models.OrderItem, numItems)
-	for i := 0; i < numItems; i++ {
+	for i := range numItems {
 		items[i] = models.OrderItem{
 			ID:        uuid.New(),
 			OrderID:   orderID,
@@ -755,10 +758,12 @@ func BenchmarkCreateOrder(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(int64(numItems), int64(numItems)))
 
-		_ = repo.CreateOrder(ctx, testOrder)
+		if err := repo.CreateOrder(ctx, testOrder); err != nil {
+			b.Fatalf("CreateOrder failed: %v", err)
+		}
 	}
 }

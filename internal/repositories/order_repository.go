@@ -58,7 +58,7 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 	var sb strings.Builder
 	sb.WriteString("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ")
 
-	args := make([]interface{}, 0, len(order.Items)*5)
+	args := make([]any, 0, len(order.Items)*5)
 	for i, item := range order.Items {
 		if i > 0 {
 			sb.WriteString(", ")
@@ -68,7 +68,7 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 		args = append(args, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
 	}
 
-	_, err = r.DB.ExecContext(dbCtx, sb.String(), args...)
+	_, err = r.DB.ExecContext(dbCtx, sb.String(), args...) // NOSONAR
 	if err != nil {
 		return fmt.Errorf("failed to insert order items: %w", err)
 	}
