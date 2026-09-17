@@ -12,12 +12,44 @@ import (
 	"github.com/lib/pq"
 )
 
+func runLoopBenchmark(b *testing.B, repo repository.ProductRepository, mock sqlmock.Sqlmock, ctx context.Context, products []*models.Product) {
+	b.Helper()
+	b.ReportAllocs()
+	for range b.N {
+		for _, p := range products {
+			mock.ExpectQuery("UPDATE products SET").
+				WithArgs(p.CategoryID, p.Name, p.Description, p.Price, p.StockQuantity, p.Status, p.ID).
+				WillReturnRows(sqlmock.NewRows([]string{"updated_at"}))
+			if updateErr := repo.UpdateProduct(ctx, p); updateErr != nil {
+				b.Fatal(updateErr)
+			}
+		}
+	}
+}
+
+func runBatchBenchmark(b *testing.B, repo repository.ProductRepository, mock sqlmock.Sqlmock, ctx context.Context, products []*models.Product, ids []uuid.UUID, quantities []int, count int) {
+	b.Helper()
+	b.ReportAllocs()
+	for range b.N {
+		mock.ExpectExec("UPDATE products AS p").
+			WithArgs(pq.Array(ids), pq.Array(quantities)).
+			WillReturnResult(sqlmock.NewResult(0, int64(count)))
+		if batchErr := repo.UpdateProductStockBatch(ctx, products); batchErr != nil {
+			b.Fatal(batchErr)
+		}
+	}
+}
+
 func BenchmarkUpdateStock_LoopVsBatch(b *testing.B) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		b.Fatalf("failed to create sqlmock: %v", err)
 	}
-	defer func() { _ = db.Close() }()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			b.Logf("failed to close mock db: %v", closeErr)
+		}
+	}()
 
 	repo := repository.NewProductRepo(db)
 	ctx := context.Background()
@@ -40,29 +72,11 @@ func BenchmarkUpdateStock_LoopVsBatch(b *testing.B) {
 		}
 
 		b.Run(fmt.Sprintf("Loop_Items_%d", count), func(b *testing.B) {
-			b.ReportAllocs()
-			for range b.N {
-				for _, p := range products {
-					mock.ExpectQuery("UPDATE products SET").
-						WithArgs(p.CategoryID, p.Name, p.Description, p.Price, p.StockQuantity, p.Status, p.ID).
-						WillReturnRows(sqlmock.NewRows([]string{"updated_at"}))
-					if updateErr := repo.UpdateProduct(ctx, p); updateErr != nil {
-						b.Fatal(updateErr)
-					}
-				}
-			}
+			runLoopBenchmark(b, repo, mock, ctx, products)
 		})
 
 		b.Run(fmt.Sprintf("Batch_Items_%d", count), func(b *testing.B) {
-			b.ReportAllocs()
-			for range b.N {
-				mock.ExpectExec("UPDATE products AS p").
-					WithArgs(pq.Array(ids), pq.Array(quantities)).
-					WillReturnResult(sqlmock.NewResult(0, int64(count)))
-				if batchErr := repo.UpdateProductStockBatch(ctx, products); batchErr != nil {
-					b.Fatal(batchErr)
-				}
-			}
+			runBatchBenchmark(b, repo, mock, ctx, products, ids, quantities, count)
 		})
 	}
 }
