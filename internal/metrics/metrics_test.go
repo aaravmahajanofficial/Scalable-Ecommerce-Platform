@@ -105,12 +105,13 @@ func TestMiddleware(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			inFlightDuringHandler := float64(-1)
 
-			dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				inFlightDuringHandler = testutil.ToFloat64(httpRequestsInFlight)
 				if tt.handlerStatus != http.StatusOK {
 					w.WriteHeader(tt.handlerStatus)
 				}
-				_, _ = w.Write([]byte(tt.handlerBody))
+				_, writeErr := w.Write([]byte(tt.handlerBody))
+				assert.NoError(t, writeErr)
 			})
 
 			wrappedHandler := Middleware(dummyHandler)
