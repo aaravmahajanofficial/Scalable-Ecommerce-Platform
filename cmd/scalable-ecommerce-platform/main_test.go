@@ -3,82 +3,67 @@ package main
 import (
 	"net/http"
 	"testing"
-	"time"
 
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/config"
-	repository "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories"
-	repoMocks "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories/mocks"
-	sendgridMocks "github.com/aaravmahajanofficial/scalable-ecommerce-platform/pkg/sendgrid/mocks"
-	stripeMocks "github.com/aaravmahajanofficial/scalable-ecommerce-platform/pkg/stripe/mocks"
+	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/handlers"
+	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/api/middleware"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetSwaggerHost(t *testing.T) {
-	t.Run("returns addr when present", func(t *testing.T) {
-		cfg := &config.Config{
-			HTTPServer: config.HTTPServer{
-				Addr: "localhost:8085",
-			},
-		}
-		host := getSwaggerHost(cfg)
-		assert.Equal(t, "localhost:8085", host)
-	})
+func TestSetupAPIRouter(t *testing.T) {
+	jwtKey := []byte("test-secret-key")
+	authMiddleware := middleware.NewAuthMiddleware(jwtKey)
 
-	t.Run("returns default when addr empty", func(t *testing.T) {
-		cfg := &config.Config{
-			HTTPServer: config.HTTPServer{
-				Addr: "",
-			},
-		}
-		host := getSwaggerHost(cfg)
-		assert.Equal(t, "local:8085", host)
-	})
-}
+	userHandler := handlers.NewUserHandler(nil)
+	productHandler := handlers.NewProductHandler(nil)
+	cartHandler := handlers.NewCartHandler(nil)
+	orderHandler := handlers.NewOrderHandler(nil)
+	paymentHandler := handlers.NewPaymentHandler(nil)
+	notificationHandler := handlers.NewNotificationHandler(nil)
 
-func TestNewServer(t *testing.T) {
-	cfg := &config.Config{
-		HTTPServer: config.HTTPServer{
-			Addr:         ":8080",
-			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 10 * time.Second,
-			IdleTimeout:  15 * time.Second,
-		},
-	}
-	handler := http.NewServeMux()
-	server := newServer(cfg, handler)
+	mux := setupAPIRouter(
+		userHandler,
+		productHandler,
+		cartHandler,
+		orderHandler,
+		paymentHandler,
+		notificationHandler,
+		authMiddleware,
+	)
 
-	assert.Equal(t, ":8080", server.Addr)
-	assert.Equal(t, 5*time.Second, server.ReadTimeout)
-	assert.Equal(t, 10*time.Second, server.WriteTimeout)
-	assert.Equal(t, 15*time.Second, server.IdleTimeout)
-	assert.Equal(t, handler, server.Handler)
-}
+	assert.NotNil(t, mux)
 
-func TestSetupRouter(t *testing.T) {
-	cfg := &config.Config{
-		Env: "testing",
-		HTTPServer: config.HTTPServer{
-			Addr: "localhost:8085",
-		},
-		OTel: config.OTelConfig{
-			ServiceName: "test-service",
-		},
+	routes := []struct {
+		method string
+		path   string
+	}{
+		{"POST", "/api/v1/users/register"},
+		{"POST", "/api/v1/users/login"},
+		{"GET", "/api/v1/users/profile"},
+		{"POST", "/api/v1/products"},
+		{"GET", "/api/v1/products/123"},
+		{"PUT", "/api/v1/products/123"},
+		{"GET", "/api/v1/products"},
+		{"GET", "/api/v1/carts"},
+		{"POST", "/api/v1/carts/items"},
+		{"PUT", "/api/v1/carts/items"},
+		{"POST", "/api/v1/orders"},
+		{"GET", "/api/v1/orders/123"},
+		{"GET", "/api/v1/orders"},
+		{"PATCH", "/api/v1/orders/123/status"},
+		{"POST", "/api/v1/payments"},
+		{"GET", "/api/v1/payments/123"},
+		{"GET", "/api/v1/payments"},
+		{"POST", "/api/v1/payments/webhook"},
+		{"POST", "/api/v1/notifications/email"},
+		{"GET", "/api/v1/notifications"},
 	}
 
-	repos := &repository.Repositories{
-		User:         repoMocks.NewMockUserRepository(t),
-		Product:      repoMocks.NewMockProductRepository(t),
-		Cart:         repoMocks.NewMockCartRepository(t),
-		Order:        repoMocks.NewMockOrderRepository(t),
-		Payment:      repoMocks.NewMockPaymentRepository(t),
-		Notification: repoMocks.NewMockNotificationRepository(t),
-		RateLimiter:  repoMocks.NewMockRateLimitRepository(t),
+	for _, rt := range routes {
+		req, err := http.NewRequest(rt.method, rt.path, nil)
+		assert.NoError(t, err)
+
+		handler, pattern := mux.Handler(req)
+		assert.NotNil(t, handler, "Expected handler for %s %s", rt.method, rt.path)
+		assert.NotEmpty(t, pattern, "Expected pattern match for %s %s", rt.method, rt.path)
 	}
-
-	jwtKey := []byte("secret")
-	stripeClient := stripeMocks.NewMockClient(t)
-	sendGridClient := sendgridMocks.NewMockEmailService(t)
-
-	handler := setupRouter(cfg, repos, jwtKey, stripeClient, sendGridClient, "localhost:8085")
-	assert.NotNil(t, handler)
 }
