@@ -1,6 +1,7 @@
 package repository_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -89,10 +90,7 @@ func TestCreateOrder(t *testing.T) {
         INSERT INTO orders (id, customer_id, status, total_amount, payment_status, payment_intent_id, shipping_address, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
     `)
-	expectedItemInsertSQL := regexp.QuoteMeta(`
-            INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
-        `)
+	expectedBulkItemInsertSQL := regexp.QuoteMeta(`INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ($1, $2, $3, $4, $5, NOW()), ($6, $7, $8, $9, $10, NOW())`)
 
 	t.Run("Success - Create Order", func(t *testing.T) {
 		// Expect the order insertion
@@ -100,15 +98,13 @@ func TestCreateOrder(t *testing.T) {
 			WithArgs(testOrder.ID, testOrder.CustomerID, testOrder.Status, testOrder.TotalAmount, testOrder.PaymentStatus, testOrder.PaymentIntentID, shippingAddrJSON).
 			WillReturnResult(sqlmock.NewResult(1, 1)) // Simulate 1 row inserted
 
-		// Expect the first item insertion
-		mock.ExpectExec(expectedItemInsertSQL).
-			WithArgs(testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice).
-			WillReturnResult(sqlmock.NewResult(1, 1))
-
-		// Expect the second item insertion
-		mock.ExpectExec(expectedItemInsertSQL).
-			WithArgs(testOrder.Items[1].ID, testOrder.ID, testOrder.Items[1].ProductID, testOrder.Items[1].Quantity, testOrder.Items[1].UnitPrice).
-			WillReturnResult(sqlmock.NewResult(1, 1))
+		// Expect the bulk item insertion
+		mock.ExpectExec(expectedBulkItemInsertSQL).
+			WithArgs(
+				testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice,
+				testOrder.Items[1].ID, testOrder.ID, testOrder.Items[1].ProductID, testOrder.Items[1].Quantity, testOrder.Items[1].UnitPrice,
+			).
+			WillReturnResult(sqlmock.NewResult(2, 2))
 
 		// Act
 		err := repo.CreateOrder(ctx, testOrder)
@@ -140,9 +136,12 @@ func TestCreateOrder(t *testing.T) {
 			WithArgs(testOrder.ID, testOrder.CustomerID, testOrder.Status, testOrder.TotalAmount, testOrder.PaymentStatus, testOrder.PaymentIntentID, shippingAddrJSON).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		// Expect the first item insertion to fail
-		mock.ExpectExec(expectedItemInsertSQL).
-			WithArgs(testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice).
+		// Expect the bulk item insertion to fail
+		mock.ExpectExec(expectedBulkItemInsertSQL).
+			WithArgs(
+				testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice,
+				testOrder.Items[1].ID, testOrder.ID, testOrder.Items[1].ProductID, testOrder.Items[1].Quantity, testOrder.Items[1].UnitPrice,
+			).
 			WillReturnError(dbErr)
 
 		// Act
@@ -150,7 +149,7 @@ func TestCreateOrder(t *testing.T) {
 
 		// Assert
 		require.Error(t, err, "CreateOrder should fail when item insert fails")
-		assert.ErrorContains(t, err, "failed to insert an order item", "Error message should indicate item insert failure")
+		assert.ErrorContains(t, err, "failed to insert order items", "Error message should indicate item insert failure")
 		assert.ErrorIs(t, err, dbErr, "Error should wrap the original DB error")
 	})
 }
@@ -710,4 +709,56 @@ func TestUpdatePaymentStatus(t *testing.T) {
 		assert.ErrorContains(t, err, "failed checking rows affected for payment status update", "Error message should indicate failure")
 		assert.ErrorIs(t, err, rowsAffectedErr, "Error should wrap the RowsAffected error")
 	})
+}
+
+
+func BenchmarkCreateOrder(b *testing.B) {
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+	if err != nil {
+		b.Fatalf("failed to create sqlmock: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	repo := repository.NewOrderRepository(db)
+	ctx := context.Background()
+
+	orderID := uuid.New()
+	customerID := uuid.New()
+	now := time.Now()
+
+	numItems := 10
+	items := make([]models.OrderItem, numItems)
+	for i := 0; i < numItems; i++ {
+		items[i] = models.OrderItem{
+			ID:        uuid.New(),
+			OrderID:   orderID,
+			ProductID: uuid.New(),
+			Quantity:  i + 1,
+			UnitPrice: 10.0 * float64(i+1),
+			CreatedAt: now,
+		}
+	}
+
+	testOrder := &models.Order{
+		ID:              orderID,
+		CustomerID:      customerID,
+		Status:          models.OrderStatusPending,
+		TotalAmount:     550.00,
+		PaymentStatus:   models.PaymentStatusPending,
+		PaymentIntentID: "pi_bench",
+		ShippingAddress: &models.Address{
+			Street: "123 Bench St", City: "BenchCity", State: "BC", PostalCode: "00000", Country: "US",
+		},
+		Items:     items,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(1, 1))
+		mock.ExpectExec(".*").WillReturnResult(sqlmock.NewResult(int64(numItems), int64(numItems)))
+
+		_ = repo.CreateOrder(ctx, testOrder)
+	}
 }
