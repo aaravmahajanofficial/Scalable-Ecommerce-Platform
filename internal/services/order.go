@@ -58,13 +58,17 @@ func (s *orderService) validateAndGetProducts(ctx context.Context, cart *models.
 }
 
 func (s *orderService) updateInventory(ctx context.Context, cart *models.Cart, productMap map[uuid.UUID]*models.Product) error {
+	updatedProducts := make([]*models.Product, 0, len(cart.Items))
 	for _, item := range cart.Items {
 		if product, exists := productMap[item.ProductID]; exists {
 			product.StockQuantity -= item.Quantity
+			updatedProducts = append(updatedProducts, product)
+		}
+	}
 
-			if err := s.productRepo.UpdateProduct(ctx, product); err != nil {
-				return apperrors.DatabaseError("Failed to update inventory").WithError(err)
-			}
+	if len(updatedProducts) > 0 {
+		if err := s.productRepo.UpdateProductStockBatch(ctx, updatedProducts); err != nil {
+			return apperrors.DatabaseError("Failed to update inventory").WithError(err)
 		}
 	}
 

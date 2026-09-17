@@ -62,8 +62,16 @@ func TestCreateOrder_Success(t *testing.T) {
 	}).Once()
 
 	// Mock Call Product Repository
-	mockProductRepo.On("UpdateProduct", ctx, mock.MatchedBy(func(p *models.Product) bool { return p.ID == productID1 && p.StockQuantity == 8 })).Return(nil).Once() // 10 - 2 = 8
-	mockProductRepo.On("UpdateProduct", ctx, mock.MatchedBy(func(p *models.Product) bool { return p.ID == productID2 && p.StockQuantity == 4 })).Return(nil).Once() // 5 - 1 = 4
+	mockProductRepo.On("UpdateProductStockBatch", ctx, mock.MatchedBy(func(products []*models.Product) bool {
+		if len(products) != 2 {
+			return false
+		}
+		stockMap := make(map[uuid.UUID]int)
+		for _, p := range products {
+			stockMap[p.ID] = p.StockQuantity
+		}
+		return stockMap[productID1] == 8 && stockMap[productID2] == 4
+	})).Return(nil).Once()
 
 	req := &models.CreateOrderRequest{
 		CustomerID: customerID,
@@ -299,7 +307,7 @@ func TestCreateOrder_UpdateInventoryRepoError(t *testing.T) {
 
 	// Mock Call Product Repo
 	mockErr := errors.New("mock update product error")
-	mockProductRepo.On("UpdateProduct", ctx, mock.AnythingOfType("*models.Product")).Return(mockErr).Once()
+	mockProductRepo.On("UpdateProductStockBatch", ctx, mock.AnythingOfType("[]*models.Product")).Return(mockErr).Once()
 
 	req := &models.CreateOrderRequest{
 		CustomerID:      customerID,
