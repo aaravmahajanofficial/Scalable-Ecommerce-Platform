@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -48,7 +49,9 @@ func TestMiddleware(t *testing.T) {
 		assert.NoError(t, err)
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test/path", http.NoBody)
+	ctx := context.Background()
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/test/path", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -57,7 +60,7 @@ func TestMiddleware(t *testing.T) {
 	assert.Equal(t, "OK", rec.Body.String())
 
 	// Test path pattern matching for id
-	reqWithID := httptest.NewRequest(http.MethodGet, "/users/123", http.NoBody)
+	reqWithID := httptest.NewRequestWithContext(ctx, http.MethodGet, "/users/123", http.NoBody)
 	reqWithID.SetPathValue("id", "123")
 	recWithID := httptest.NewRecorder()
 
@@ -65,7 +68,7 @@ func TestMiddleware(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recWithID.Code)
 
 	// Test path pattern matching for ...
-	reqWithWildcard := httptest.NewRequest(http.MethodGet, "/files/a/b/c", http.NoBody)
+	reqWithWildcard := httptest.NewRequestWithContext(ctx, http.MethodGet, "/files/a/b/c", http.NoBody)
 	reqWithWildcard.SetPathValue("...", "a/b/c")
 	recWithWildcard := httptest.NewRecorder()
 
@@ -77,7 +80,7 @@ func TestHandler(t *testing.T) {
 	h := Handler()
 	assert.NotNil(t, h)
 
-	req := httptest.NewRequest(http.MethodGet, "/metrics", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/metrics", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	h.ServeHTTP(rec, req)
