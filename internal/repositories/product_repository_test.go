@@ -552,4 +552,57 @@ func TestProductRepository(t *testing.T) {
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	})
+	t.Run("UpdateProductStockBatch", func(t *testing.T) {
+		productID1 := uuid.New()
+		productID2 := uuid.New()
+
+		expectedSQL := regexp.QuoteMeta(`
+		UPDATE products AS p
+		SET stock_quantity = v.stock_quantity, updated_at = NOW()
+		FROM (
+			SELECT UNNEST($1::uuid[]) AS id, UNNEST($2::int[]) AS stock_quantity
+		) AS v
+		WHERE p.id = v.id`)
+
+		t.Run("Success", func(t *testing.T) {
+			products := []*models.Product{
+				{ID: productID1, StockQuantity: 8},
+				{ID: productID2, StockQuantity: 4},
+			}
+
+			mock.ExpectExec(expectedSQL).
+				WithArgs(pq.Array([]uuid.UUID{productID1, productID2}), pq.Array([]int{8, 4})).
+				WillReturnResult(sqlmock.NewResult(0, 2))
+
+			err := repo.UpdateProductStockBatch(ctx, products)
+			require.NoError(t, err)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run("EmptyList", func(t *testing.T) {
+			err := repo.UpdateProductStockBatch(ctx, []*models.Product{})
+			require.NoError(t, err)
+		})
+
+		t.Run("NilList", func(t *testing.T) {
+			err := repo.UpdateProductStockBatch(ctx, nil)
+			require.NoError(t, err)
+		})
+
+		t.Run("Error", func(t *testing.T) {
+			products := []*models.Product{
+				{ID: productID1, StockQuantity: 8},
+			}
+			dbErr := errors.New("batch update error")
+
+			mock.ExpectExec(expectedSQL).
+				WithArgs(pq.Array([]uuid.UUID{productID1}), pq.Array([]int{8})).
+				WillReturnError(dbErr)
+
+			err := repo.UpdateProductStockBatch(ctx, products)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, dbErr)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	})
 }

@@ -302,12 +302,12 @@ func (_c *MockProductRepository_UpdateProduct_Call) RunAndReturn(run func(ctx co
 	return _c
 }
 
-// UpdateProducts provides a mock function for the type MockProductRepository
-func (_mock *MockProductRepository) UpdateProducts(ctx context.Context, products []*models.Product) error {
+// UpdateProductStockBatch provides a mock function for the type MockProductRepository
+func (_mock *MockProductRepository) UpdateProductStockBatch(ctx context.Context, products []*models.Product) error {
 	ret := _mock.Called(ctx, products)
 
 	if len(ret) == 0 {
-		panic("no return value specified for UpdateProducts")
+		panic("no return value specified for UpdateProductStockBatch")
 	}
 
 	var r0 error
@@ -319,31 +319,29 @@ func (_mock *MockProductRepository) UpdateProducts(ctx context.Context, products
 	return r0
 }
 
-// MockProductRepository_UpdateProducts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method "UpdateProducts"
-type MockProductRepository_UpdateProducts_Call struct {
+// MockProductRepository_UpdateProductStockBatch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method "UpdateProductStockBatch"
+type MockProductRepository_UpdateProductStockBatch_Call struct {
 	*mock.Call
 }
 
-// UpdateProducts is a helper method to define mock.On call
-//   - ctx
-//   - products
-func (_e *MockProductRepository_Expecter) UpdateProducts(ctx interface{}, products interface{}) *MockProductRepository_UpdateProducts_Call {
-	return &MockProductRepository_UpdateProducts_Call{Call: _e.mock.On("UpdateProducts", ctx, products)}
+// UpdateProductStockBatch is a helper method to define mock.On call
+func (_e *MockProductRepository_Expecter) UpdateProductStockBatch(ctx interface{}, products interface{}) *MockProductRepository_UpdateProductStockBatch_Call {
+	return &MockProductRepository_UpdateProductStockBatch_Call{Call: _e.mock.On("UpdateProductStockBatch", ctx, products)}
 }
 
-func (_c *MockProductRepository_UpdateProducts_Call) Run(run func(ctx context.Context, products []*models.Product)) *MockProductRepository_UpdateProducts_Call {
+func (_c *MockProductRepository_UpdateProductStockBatch_Call) Run(run func(ctx context.Context, products []*models.Product)) *MockProductRepository_UpdateProductStockBatch_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(context.Context), args[1].([]*models.Product))
 	})
 	return _c
 }
 
-func (_c *MockProductRepository_UpdateProducts_Call) Return(err error) *MockProductRepository_UpdateProducts_Call {
+func (_c *MockProductRepository_UpdateProductStockBatch_Call) Return(err error) *MockProductRepository_UpdateProductStockBatch_Call {
 	_c.Call.Return(err)
 	return _c
 }
 
-func (_c *MockProductRepository_UpdateProducts_Call) RunAndReturn(run func(ctx context.Context, products []*models.Product) error) *MockProductRepository_UpdateProducts_Call {
+func (_c *MockProductRepository_UpdateProductStockBatch_Call) RunAndReturn(run func(ctx context.Context, products []*models.Product) error) *MockProductRepository_UpdateProductStockBatch_Call {
 	_c.Call.Return(run)
 	return _c
 }

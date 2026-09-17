@@ -18,7 +18,7 @@ type ProductRepository interface {
 	GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error)
 	GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Product, error)
 	UpdateProduct(ctx context.Context, product *models.Product) error
-	UpdateProducts(ctx context.Context, products []*models.Product) error
+	UpdateProductStockBatch(ctx context.Context, products []*models.Product) error
 	ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error)
 }
 
@@ -138,7 +138,7 @@ func (r *productRepository) UpdateProduct(ctx context.Context, product *models.P
 	return r.DB.QueryRowContext(dbCtx, query, product.CategoryID, product.Name, product.Description, product.Price, product.StockQuantity, product.Status, product.ID).Scan(&product.UpdatedAt)
 }
 
-func (r *productRepository) UpdateProducts(ctx context.Context, products []*models.Product) error {
+func (r *productRepository) UpdateProductStockBatch(ctx context.Context, products []*models.Product) error {
 	if len(products) == 0 {
 		return nil
 	}
@@ -146,38 +146,32 @@ func (r *productRepository) UpdateProducts(ctx context.Context, products []*mode
 	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
 
-	tx, err := r.DB.BeginTx(dbCtx, nil)
+	ids := make([]uuid.UUID, 0, len(products))
+	quantities := make([]int, 0, len(products))
+
+	for _, p := range products {
+		if p != nil {
+			ids = append(ids, p.ID)
+			quantities = append(quantities, p.StockQuantity)
+		}
+	}
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	query := `
+		UPDATE products AS p
+		SET stock_quantity = v.stock_quantity, updated_at = NOW()
+		FROM (
+			SELECT UNNEST($1::uuid[]) AS id, UNNEST($2::int[]) AS stock_quantity
+		) AS v
+		WHERE p.id = v.id
+	`
+
+	_, err := r.DB.ExecContext(dbCtx, query, pq.Array(ids), pq.Array(quantities))
 	if err != nil {
-		return fmt.Errorf("beginning transaction for products update: %w", err)
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			slog.Error("failed to rollback transaction", slog.Any("error", rollbackErr))
-		}
-	}()
-
-	stmt, err := tx.PrepareContext(dbCtx, `
-		UPDATE products SET category_id = $1, name = $2, description = $3, price = $4, stock_quantity = $5, status = $6, updated_at = NOW()
-		WHERE id = $7
-		RETURNING updated_at
-	`)
-	if err != nil {
-		return fmt.Errorf("preparing update statement: %w", err)
-	}
-	defer func() {
-		if closeErr := stmt.Close(); closeErr != nil {
-			slog.Error("failed to close statement", slog.Any("error", closeErr))
-		}
-	}()
-
-	for _, product := range products {
-		if err := stmt.QueryRowContext(dbCtx, product.CategoryID, product.Name, product.Description, product.Price, product.StockQuantity, product.Status, product.ID).Scan(&product.UpdatedAt); err != nil {
-			return fmt.Errorf("updating product %s: %w", product.ID, err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing batch product update: %w", err)
+		return fmt.Errorf("batch updating product stock: %w", err)
 	}
 
 	return nil
