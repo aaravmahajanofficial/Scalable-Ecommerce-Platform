@@ -2,6 +2,7 @@
 package metrics
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -38,16 +39,21 @@ var (
 	)
 )
 
-func init() {
-	if err := prometheus.Register(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{})); err != nil {
-		slog.Debug("ProcessCollector registration skipped (likely already registered)",
-			slog.String("error", err.Error()))
+func registerCollector(c prometheus.Collector, name string) {
+	if err := prometheus.Register(c); err != nil {
+		if _, ok := errors.AsType[prometheus.AlreadyRegisteredError](err); ok {
+			slog.Debug(name+" registration skipped (already registered)",
+				slog.String("error", err.Error()))
+		} else {
+			slog.Error("Failed to register "+name,
+				slog.String("error", err.Error()))
+		}
 	}
+}
 
-	if err := prometheus.Register(collectors.NewGoCollector()); err != nil {
-		slog.Debug("GoCollector registration skipped (likely already registered)",
-			slog.String("error", err.Error()))
-	}
+func init() {
+	registerCollector(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}), "ProcessCollector")
+	registerCollector(collectors.NewGoCollector(), "GoCollector")
 }
 
 // wrapper around http.ResponseWriter to capture the status code.
