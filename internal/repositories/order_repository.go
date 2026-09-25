@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"database/sql"
 	"encoding/json"
@@ -55,16 +56,31 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 	}
 
 	// Insert order items in batch
-	valueStrings := make([]string, 0, len(order.Items))
 	valueArgs := make([]any, 0, len(order.Items)*5)
+	var queryBuilder strings.Builder
+	queryBuilder.WriteString("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ")
 
 	for i, item := range order.Items {
+		if i > 0 {
+			queryBuilder.WriteString(", ")
+		}
 		baseParam := i * 5
-		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, NOW())", baseParam+1, baseParam+2, baseParam+3, baseParam+4, baseParam+5))
+		queryBuilder.WriteString("($")
+		queryBuilder.WriteString(strconv.Itoa(baseParam + 1))
+		queryBuilder.WriteString(", $")
+		queryBuilder.WriteString(strconv.Itoa(baseParam + 2))
+		queryBuilder.WriteString(", $")
+		queryBuilder.WriteString(strconv.Itoa(baseParam + 3))
+		queryBuilder.WriteString(", $")
+		queryBuilder.WriteString(strconv.Itoa(baseParam + 4))
+		queryBuilder.WriteString(", $")
+		queryBuilder.WriteString(strconv.Itoa(baseParam + 5))
+		queryBuilder.WriteString(", NOW())")
+
 		valueArgs = append(valueArgs, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
 	}
 
-	batchQuery := fmt.Sprintf("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES %s", strings.Join(valueStrings, ", "))
+	batchQuery := queryBuilder.String()
 
 	_, err = r.DB.ExecContext(dbCtx, batchQuery, valueArgs...)
 	if err != nil {
