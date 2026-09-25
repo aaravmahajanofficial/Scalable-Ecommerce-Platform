@@ -23,8 +23,46 @@ type productRepository struct {
 	DB *sql.DB
 }
 
+type scanner interface {
+	Scan(dest ...any) error
+}
+
 func NewProductRepo(db *sql.DB) ProductRepository {
 	return &productRepository{DB: db}
+}
+
+func scanProductRow(s scanner) (*models.Product, error) {
+	product := &models.Product{}
+	category := &models.Category{}
+
+	err := s.Scan(
+		&product.ID, &product.CategoryID, &product.Name, &product.Description, &product.Price,
+		&product.StockQuantity, &product.SKU, &product.Status, &product.CreatedAt, &product.UpdatedAt,
+		&category.ID, &category.Name, &category.Description,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	product.Category = category
+	return product, nil
+}
+
+func scanProductRows(rows *sql.Rows) ([]*models.Product, error) {
+	var products []*models.Product
+	for rows.Next() {
+		product, err := scanProductRow(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scanning product row: %w", err)
+		}
+		products = append(products, product)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return products, nil
 }
 
 func (r *productRepository) CreateProduct(ctx context.Context, product *models.Product) error {
@@ -43,8 +81,6 @@ func (r *productRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*
 	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
 
-	product := &models.Product{}
-
 	query := `
         SELECT p.id, p.category_id, p.name, p.description, p.price, 
                p.stock_quantity, p.sku, p.status, p.created_at, p.updated_at,
@@ -53,14 +89,10 @@ func (r *productRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.id = $1`
 
-	var category models.Category
-
-	err := r.DB.QueryRowContext(dbCtx, query, id).Scan(&product.ID, &product.CategoryID, &product.Name, &product.Description, &product.Price, &product.StockQuantity, &product.SKU, &product.Status, &product.CreatedAt, &product.UpdatedAt, &category.ID, &category.Name, &category.Description)
+	product, err := scanProductRow(r.DB.QueryRowContext(dbCtx, query, id))
 	if err != nil {
 		return nil, fmt.Errorf("querying database: %w", err)
 	}
-
-	product.Category = &category
 
 	return product, nil
 }
@@ -87,18 +119,7 @@ func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUI
 	}
 	defer closeRows(rows)
 
-	var products []*models.Product
-	for rows.Next() {
-		product := &models.Product{}
-		category := &models.Category{}
-		err := rows.Scan(&product.ID, &product.CategoryID, &product.Name, &product.Description, &product.Price, &product.StockQuantity, &product.SKU, &product.Status, &product.CreatedAt, &product.UpdatedAt, &category.ID, &category.Name, &category.Description)
-		if err != nil {
-			return nil, fmt.Errorf("scanning product row: %w", err)
-		}
-		product.Category = category
-		products = append(products, product)
-	}
-	return products, rows.Err()
+	return scanProductRows(rows)
 }
 
 func (r *productRepository) UpdateProduct(ctx context.Context, product *models.Product) error {
@@ -147,22 +168,8 @@ func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([
 
 	defer closeRows(rows)
 
-	var products []*models.Product
-
-	for rows.Next() {
-		product := &models.Product{}
-		category := &models.Category{}
-
-		err := rows.Scan(&product.ID, &product.CategoryID, &product.Name, &product.Description, &product.Price, &product.StockQuantity, &product.SKU, &product.Status, &product.CreatedAt, &product.UpdatedAt, &category.ID, &category.Name, &category.Description)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		product.Category = category
-		products = append(products, product)
-	}
-
-	if err := rows.Err(); err != nil {
+	products, err := scanProductRows(rows)
+	if err != nil {
 		return nil, 0, err
 	}
 
