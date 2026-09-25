@@ -549,6 +549,74 @@ func TestProcessWebhook(t *testing.T) {
 		mockStripeClient.AssertExpectations(t)
 	})
 
+	t.Run("Failure - Non-String Payment Intent ID (Succeeded)", func(t *testing.T) {
+		// Arrange
+		mockRepo := repoMocks.NewMockPaymentRepository(t)
+		mockStripeClient := stripeMocks.NewMockClient(t)
+		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+
+		eventNonStringID := stripe.Event{
+			ID:   "evt_non_string",
+			Type: "payment_intent.succeeded",
+			Data: &stripe.EventData{
+				Object: map[string]any{
+					"id": 12345,
+				},
+			},
+		}
+		payloadNonStringID := []byte(`{"id": "evt_non_string", "type": "payment_intent.succeeded", "data": {"object": {"id": 12345}}}`)
+		mockStripeClient.On("VerifyWebhookSignature", payloadNonStringID, signature).Return(eventNonStringID, nil).Once()
+
+		// Act
+		event, err := paymentService.ProcessWebhook(ctx, payloadNonStringID, signature)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Equal(t, eventNonStringID.ID, event.ID)
+
+		appErr, ok := appErrors.IsAppError(err)
+		assert.True(t, ok)
+		assert.Equal(t, appErrors.ErrCodeInternal, appErr.Code)
+		assert.Contains(t, err.Error(), "Payment intent ID is not a string")
+
+		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
+		mockStripeClient.AssertExpectations(t)
+	})
+
+	t.Run("Failure - Empty String Payment Intent ID (Succeeded)", func(t *testing.T) {
+		// Arrange
+		mockRepo := repoMocks.NewMockPaymentRepository(t)
+		mockStripeClient := stripeMocks.NewMockClient(t)
+		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+
+		eventEmptyStringID := stripe.Event{
+			ID:   "evt_empty_string",
+			Type: "payment_intent.succeeded",
+			Data: &stripe.EventData{
+				Object: map[string]any{
+					"id": "",
+				},
+			},
+		}
+		payloadEmptyStringID := []byte(`{"id": "evt_empty_string", "type": "payment_intent.succeeded", "data": {"object": {"id": ""}}}`)
+		mockStripeClient.On("VerifyWebhookSignature", payloadEmptyStringID, signature).Return(eventEmptyStringID, nil).Once()
+
+		// Act
+		event, err := paymentService.ProcessWebhook(ctx, payloadEmptyStringID, signature)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Equal(t, eventEmptyStringID.ID, event.ID)
+
+		appErr, ok := appErrors.IsAppError(err)
+		assert.True(t, ok)
+		assert.Equal(t, appErrors.ErrCodeThirdPartyError, appErr.Code)
+		assert.Contains(t, err.Error(), "Missing payment intent ID in webhook")
+
+		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
+		mockStripeClient.AssertExpectations(t)
+	})
+
 	t.Run("Failure - UpdatePaymentStatus Fails (Succeeded)", func(t *testing.T) {
 		// Arrange
 		mockRepo := repoMocks.NewMockPaymentRepository(t)
