@@ -249,6 +249,44 @@ func TestCreatePayment(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 		mockStripeClient.AssertExpectations(t)
 	})
+
+	t.Run("Failure - Repository CreatePayment Fails (Non-Card)", func(t *testing.T) {
+		// Arrange
+		mockRepo := repoMocks.NewMockPaymentRepository(t)
+		mockStripeClient := stripeMocks.NewMockClient(t)
+		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+
+		dbErr := errors.New("database insert error")
+
+		mockPaymentIntentOther := &stripe.PaymentIntent{
+			ID:           "pi_789",
+			Amount:       reqOther.Amount,
+			Currency:     stripe.Currency(reqOther.Currency),
+			Description:  reqOther.Description,
+			ClientSecret: "pi_789_secret_def",
+			Status:       stripe.PaymentIntentStatusRequiresPaymentMethod,
+		}
+
+		mockStripeClient.On("CreatePaymentIntent", reqOther.Amount, reqOther.Currency, reqOther.Description, reqOther.CustomerID).Return(mockPaymentIntentOther, nil).Once()
+		mockRepo.On("CreatePayment", ctx, mock.AnythingOfType("*models.Payment")).Return(dbErr).Once()
+
+		// Act
+		resp, err := paymentService.CreatePayment(ctx, reqOther)
+
+		// Assert
+		assert.Error(t, err)
+		assert.Nil(t, resp)
+
+		appErr, ok := appErrors.IsAppError(err)
+		assert.True(t, ok)
+		assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code)
+		assert.ErrorIs(t, err, dbErr)
+
+		mockRepo.AssertExpectations(t)
+		mockStripeClient.AssertExpectations(t)
+		mockStripeClient.AssertNotCalled(t, "CreatePaymentMethodFromToken")
+		mockStripeClient.AssertNotCalled(t, "AttachPaymentMethodToIntent")
+	})
 }
 
 func TestGetPaymentByID(t *testing.T) {
