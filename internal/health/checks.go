@@ -70,6 +70,7 @@ func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Han
 	return h.Handler(), nil
 }
 
+//nolint:gocritic // client is an interface (stripeClient.Client)
 func checkStripeHealth(ctx context.Context, client *stripeClient.Client) error {
 	if client == nil {
 		return errors.New("stripe client is not initialized")
