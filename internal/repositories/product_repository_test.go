@@ -282,6 +282,48 @@ func TestProductRepository(t *testing.T) {
 		})
 	})
 
+	t.Run("UpdateProducts", func(t *testing.T) {
+		t.Run("EmptyList", func(t *testing.T) {
+			err := repo.UpdateProducts(ctx, []*models.Product{})
+			require.NoError(t, err)
+		})
+
+		t.Run("Success", func(t *testing.T) {
+			p1 := &models.Product{ID: uuid.New(), CategoryID: uuid.New(), Name: "P1", Description: "D1", Price: 10, StockQuantity: 5, Status: "active"}
+			p2 := &models.Product{ID: uuid.New(), CategoryID: uuid.New(), Name: "P2", Description: "D2", Price: 20, StockQuantity: 8, Status: "active"}
+			now := time.Now()
+
+			mock.ExpectBegin()
+			expectedStmt := mock.ExpectPrepare(regexp.QuoteMeta(`
+		UPDATE products SET category_id = $1, name = $2, description = $3, price = $4, stock_quantity = $5, status = $6, updated_at = NOW()
+		WHERE id = $7
+		RETURNING updated_at
+	`))
+			expectedStmt.ExpectQuery().
+				WithArgs(p1.CategoryID, p1.Name, p1.Description, p1.Price, p1.StockQuantity, p1.Status, p1.ID).
+				WillReturnRows(sqlmock.NewRows([]string{"updated_at"}).AddRow(now))
+			expectedStmt.ExpectQuery().
+				WithArgs(p2.CategoryID, p2.Name, p2.Description, p2.Price, p2.StockQuantity, p2.Status, p2.ID).
+				WillReturnRows(sqlmock.NewRows([]string{"updated_at"}).AddRow(now))
+			mock.ExpectCommit()
+
+			err := repo.UpdateProducts(ctx, []*models.Product{p1, p2})
+			require.NoError(t, err)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run("BeginTxError", func(t *testing.T) {
+			p1 := &models.Product{ID: uuid.New()}
+			dbErr := errors.New("tx begin error")
+			mock.ExpectBegin().WillReturnError(dbErr)
+
+			err := repo.UpdateProducts(ctx, []*models.Product{p1})
+			require.Error(t, err)
+			assert.ErrorIs(t, err, dbErr)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	})
+
 	t.Run("ListProducts", func(t *testing.T) {
 		page, size := 1, 2
 		offset := (page - 1) * size

@@ -62,8 +62,18 @@ func TestCreateOrder_Success(t *testing.T) {
 	}).Once()
 
 	// Mock Call Product Repository
-	mockProductRepo.On("UpdateProduct", ctx, mock.MatchedBy(func(p *models.Product) bool { return p.ID == productID1 && p.StockQuantity == 8 })).Return(nil).Once() // 10 - 2 = 8
-	mockProductRepo.On("UpdateProduct", ctx, mock.MatchedBy(func(p *models.Product) bool { return p.ID == productID2 && p.StockQuantity == 4 })).Return(nil).Once() // 5 - 1 = 4
+	mockProductRepo.On("UpdateProducts", ctx, mock.MatchedBy(func(products []*models.Product) bool {
+		if len(products) != 2 {
+			return false
+		}
+		var matchedCount int
+		for _, p := range products {
+			if (p.ID == productID1 && p.StockQuantity == 8) || (p.ID == productID2 && p.StockQuantity == 4) {
+				matchedCount++
+			}
+		}
+		return matchedCount == 2
+	})).Return(nil).Once()
 
 	req := &models.CreateOrderRequest{
 		CustomerID: customerID,
@@ -299,7 +309,7 @@ func TestCreateOrder_UpdateInventoryRepoError(t *testing.T) {
 
 	// Mock Call Product Repo
 	mockErr := errors.New("mock update product error")
-	mockProductRepo.On("UpdateProduct", ctx, mock.AnythingOfType("*models.Product")).Return(mockErr).Once()
+	mockProductRepo.On("UpdateProducts", ctx, mock.AnythingOfType("[]*models.Product")).Return(mockErr).Once()
 
 	req := &models.CreateOrderRequest{
 		CustomerID:      customerID,
@@ -529,4 +539,42 @@ func TestUpdateOrderStatus_UpdateRepoError(t *testing.T) {
 	assert.ErrorIs(t, appErr.Unwrap(), mockErr)
 
 	mockOrderRepo.AssertExpectations(t)
+}
+
+
+func BenchmarkCreateOrder(b *testing.B) {
+	mockOrderRepo := mocks.NewMockOrderRepository(b)
+	mockCartRepo := mocks.NewMockCartRepository(b)
+	mockProductRepo := mocks.NewMockProductRepository(b)
+	orderService := service.NewOrderService(mockOrderRepo, mockCartRepo, mockProductRepo)
+	ctx := b.Context()
+
+	customerID := uuid.New()
+	cartItems := make(map[string]models.CartItem)
+	orderItems := make([]models.OrderItem, 0, 10)
+	products := make([]*models.Product, 0, 10)
+
+	for range 10 {
+		pID := uuid.New()
+		cartItems[pID.String()] = models.CartItem{ProductID: pID, Quantity: 2}
+		orderItems = append(orderItems, models.OrderItem{ProductID: pID, Quantity: 2, UnitPrice: 10.0})
+		products = append(products, &models.Product{ID: pID, StockQuantity: 100, Price: 10.0})
+	}
+
+	cart := &models.Cart{UserID: customerID, Items: cartItems}
+
+	mockCartRepo.On("GetCartByCustomerID", ctx, customerID).Return(cart, nil)
+	mockProductRepo.On("GetProductsByIDs", ctx, mock.Anything).Return(products, nil)
+	mockOrderRepo.On("CreateOrder", ctx, mock.Anything).Return(nil)
+	mockProductRepo.On("UpdateProducts", ctx, mock.Anything).Return(nil)
+
+	req := &models.CreateOrderRequest{
+		CustomerID: customerID,
+		Items:      orderItems,
+	}
+
+	b.ResetTimer()
+	for range b.N {
+		_, _ = orderService.CreateOrder(ctx, req)
+	}
 }

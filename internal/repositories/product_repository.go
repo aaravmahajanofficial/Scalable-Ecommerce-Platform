@@ -16,6 +16,7 @@ type ProductRepository interface {
 	GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error)
 	GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Product, error)
 	UpdateProduct(ctx context.Context, product *models.Product) error
+	UpdateProducts(ctx context.Context, products []*models.Product) error
 	ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error)
 }
 
@@ -112,6 +113,47 @@ func (r *productRepository) UpdateProduct(ctx context.Context, product *models.P
 	`
 
 	return r.DB.QueryRowContext(dbCtx, query, product.CategoryID, product.Name, product.Description, product.Price, product.StockQuantity, product.Status, product.ID).Scan(&product.UpdatedAt)
+}
+
+func (r *productRepository) UpdateProducts(ctx context.Context, products []*models.Product) error {
+	if len(products) == 0 {
+		return nil
+	}
+
+	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	defer cancel()
+
+	tx, err := r.DB.BeginTx(dbCtx, nil)
+	if err != nil {
+		return fmt.Errorf("beginning transaction for products update: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	stmt, err := tx.PrepareContext(dbCtx, `
+		UPDATE products SET category_id = $1, name = $2, description = $3, price = $4, stock_quantity = $5, status = $6, updated_at = NOW()
+		WHERE id = $7
+		RETURNING updated_at
+	`)
+	if err != nil {
+		return fmt.Errorf("preparing update statement: %w", err)
+	}
+	defer func() {
+		_ = stmt.Close()
+	}()
+
+	for _, product := range products {
+		if err := stmt.QueryRowContext(dbCtx, product.CategoryID, product.Name, product.Description, product.Price, product.StockQuantity, product.Status, product.ID).Scan(&product.UpdatedAt); err != nil {
+			return fmt.Errorf("updating product %s: %w", product.ID, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("committing batch product update: %w", err)
+	}
+
+	return nil
 }
 
 func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error) {
