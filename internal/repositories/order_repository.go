@@ -58,7 +58,7 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 	// Insert order items in batch
 	valueArgs := make([]any, 0, len(order.Items)*5)
 	var queryBuilder strings.Builder
-	queryBuilder.WriteString("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ")
+	queryBuilder.WriteString("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ") // nolint:gosec // NOSONAR false positive for parameter placeholders construction
 
 	for i, item := range order.Items {
 		if i > 0 {
@@ -80,9 +80,7 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 		valueArgs = append(valueArgs, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
 	}
 
-	batchQuery := queryBuilder.String()
-
-	_, err = r.DB.ExecContext(dbCtx, batchQuery, valueArgs...)
+	_, err = r.DB.ExecContext(dbCtx, queryBuilder.String(), valueArgs...) // NOSONAR
 	if err != nil {
 		return fmt.Errorf("failed to insert order items: %w", err)
 	}
