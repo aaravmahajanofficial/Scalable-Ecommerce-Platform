@@ -19,7 +19,11 @@ func BenchmarkListOrdersByCustomer(b *testing.B) {
 	if err != nil {
 		b.Fatalf("Failed to create sqlmock: %v", err)
 	}
-	defer func() { _ = db.Close() }()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			b.Logf("failed to close mock db: %v", closeErr)
+		}
+	}()
 
 	repo := repository.NewOrderRepository(db)
 	ctx := context.Background()
@@ -31,7 +35,10 @@ func BenchmarkListOrdersByCustomer(b *testing.B) {
 	orderIDs := make([]uuid.UUID, numOrders)
 
 	addr := &models.Address{Street: "List St", City: "Listville", State: "LS", PostalCode: "11111", Country: "US"}
-	addrJSON, _ := json.Marshal(addr)
+	addrJSON, err := json.Marshal(addr)
+	if err != nil {
+		b.Fatalf("failed to marshal addr: %v", err)
+	}
 
 	for i := range numOrders {
 		orderIDs[i] = uuid.New()
@@ -62,7 +69,7 @@ func BenchmarkListOrdersByCustomer(b *testing.B) {
     `)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		mock.ExpectQuery(expectedCountSQL).WithArgs(customerID).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(numOrders))
 
 		orderRows := sqlmock.NewRows([]string{"id", "status", "total_amount", "payment_status", "payment_intent_id", "shipping_address", "created_at", "updated_at"})
@@ -77,6 +84,8 @@ func BenchmarkListOrdersByCustomer(b *testing.B) {
 		}
 		mock.ExpectQuery(expectedListItemsSQL).WithArgs(pq.Array(orderIDs)).WillReturnRows(itemRows)
 
-		_, _, _ = repo.ListOrdersByCustomer(ctx, customerID, 1, 50)
+		if _, _, err := repo.ListOrdersByCustomer(ctx, customerID, 1, 50); err != nil {
+			b.Fatalf("ListOrdersByCustomer failed: %v", err)
+		}
 	}
 }
