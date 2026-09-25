@@ -6,6 +6,10 @@ import (
 	"time"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/config"
+	repository "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories"
+	repoMocks "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories/mocks"
+	sendgridMocks "github.com/aaravmahajanofficial/scalable-ecommerce-platform/pkg/sendgrid/mocks"
+	stripeMocks "github.com/aaravmahajanofficial/scalable-ecommerce-platform/pkg/stripe/mocks"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,4 +52,33 @@ func TestNewServer(t *testing.T) {
 	assert.Equal(t, 10*time.Second, server.WriteTimeout)
 	assert.Equal(t, 15*time.Second, server.IdleTimeout)
 	assert.Equal(t, handler, server.Handler)
+}
+
+func TestSetupRouter(t *testing.T) {
+	cfg := &config.Config{
+		Env: "testing",
+		HTTPServer: config.HTTPServer{
+			Addr: "localhost:8085",
+		},
+		OTel: config.OTelConfig{
+			ServiceName: "test-service",
+		},
+	}
+
+	repos := &repository.Repositories{
+		User:         repoMocks.NewMockUserRepository(t),
+		Product:      repoMocks.NewMockProductRepository(t),
+		Cart:         repoMocks.NewMockCartRepository(t),
+		Order:        repoMocks.NewMockOrderRepository(t),
+		Payment:      repoMocks.NewMockPaymentRepository(t),
+		Notification: repoMocks.NewMockNotificationRepository(t),
+		RateLimiter:  repoMocks.NewMockRateLimitRepository(t),
+	}
+
+	jwtKey := []byte("secret")
+	stripeClient := stripeMocks.NewMockClient(t)
+	sendGridClient := sendgridMocks.NewMockEmailService(t)
+
+	handler := setupRouter(cfg, repos, jwtKey, stripeClient, sendGridClient, "localhost:8085")
+	assert.NotNil(t, handler)
 }
