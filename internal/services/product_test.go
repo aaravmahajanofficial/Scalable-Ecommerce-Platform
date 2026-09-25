@@ -316,3 +316,10 @@ func TestListProducts(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 }
+
+func TestNewProductService(t *testing.T) {
+	mockRepo := mocks.NewMockProductRepository(t)
+	productService := service.NewProductService(mockRepo)
+
+	assert.NotNil(t, productService)
+}
