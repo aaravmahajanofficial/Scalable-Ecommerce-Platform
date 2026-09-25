@@ -85,11 +85,12 @@ func TestLoggingMiddleware(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					if tc.handlerStatus != 0 {
 						w.WriteHeader(tc.handlerStatus)
 					}
-					_, _ = w.Write([]byte("response"))
+					_, err := w.Write([]byte("response"))
+					require.NoError(t, err)
 				})
 
 				handler := middleware.Logging(nextHandler)
