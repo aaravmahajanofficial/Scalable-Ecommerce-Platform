@@ -71,21 +71,7 @@ func (s *orderService) updateInventory(ctx context.Context, cart *models.Cart, p
 	return nil
 }
 
-func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderRequest) (*models.Order, error) {
-	cart, err := s.cartRepo.GetCartByCustomerID(ctx, req.CustomerID)
-	if err != nil {
-		return nil, apperrors.NotFoundError("Cart not found").WithError(err)
-	}
-
-	if len(cart.Items) == 0 {
-		return nil, apperrors.BadRequestError("Cannot create order with empty cart")
-	}
-
-	productMap, err := s.validateAndGetProducts(ctx, cart)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *orderService) buildOrder(req *models.CreateOrderRequest) *models.Order {
 	var grossTotal float64
 	for _, item := range req.Items {
 		grossTotal += float64(item.Quantity) * item.UnitPrice
@@ -115,6 +101,26 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 		items = append(items, orderItem)
 	}
 	order.Items = items
+
+	return order
+}
+
+func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderRequest) (*models.Order, error) {
+	cart, err := s.cartRepo.GetCartByCustomerID(ctx, req.CustomerID)
+	if err != nil {
+		return nil, apperrors.NotFoundError("Cart not found").WithError(err)
+	}
+
+	if len(cart.Items) == 0 {
+		return nil, apperrors.BadRequestError("Cannot create order with empty cart")
+	}
+
+	productMap, err := s.validateAndGetProducts(ctx, cart)
+	if err != nil {
+		return nil, err
+	}
+
+	order := s.buildOrder(req)
 
 	if err := s.orderRepo.CreateOrder(ctx, order); err != nil {
 		return nil, apperrors.DatabaseError("Failed to create order").WithError(err)
