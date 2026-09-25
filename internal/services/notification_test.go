@@ -18,12 +18,21 @@ import (
 )
 
 func TestNewNotificationService(t *testing.T) {
-	mockRepo := repoMocks.NewMockNotificationRepository(t)
-	mockUserRepo := repoMocks.NewMockUserRepository(t)
-	mockEmailService := emailMocks.NewMockEmailService(t)
+	t.Run("Success - Valid Dependencies", func(t *testing.T) {
+		mockRepo := repoMocks.NewMockNotificationRepository(t)
+		mockUserRepo := repoMocks.NewMockUserRepository(t)
+		mockEmailService := emailMocks.NewMockEmailService(t)
 
-	svc := service.NewNotificationService(mockRepo, mockUserRepo, mockEmailService)
-	assert.NotNil(t, svc)
+		svc := service.NewNotificationService(mockRepo, mockUserRepo, mockEmailService)
+		assert.NotNil(t, svc)
+		assert.Implements(t, (*service.NotificationService)(nil), svc)
+	})
+
+	t.Run("Success - Nil Dependencies", func(t *testing.T) {
+		svc := service.NewNotificationService(nil, nil, nil)
+		assert.NotNil(t, svc)
+		assert.Implements(t, (*service.NotificationService)(nil), svc)
+	})
 }
 
 func TestSendEmail(t *testing.T) {
