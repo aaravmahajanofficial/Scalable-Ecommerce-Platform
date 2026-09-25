@@ -196,45 +196,39 @@ func (r *orderRepository) populateOrderItems(ctx context.Context, orders []model
 	}
 
 	orderIDs := make([]uuid.UUID, len(orders))
+	orderMap := make(map[uuid.UUID]int, len(orders))
 	for i := range orders {
 		orderIDs[i] = orders[i].ID
+		orderMap[orders[i].ID] = i
 	}
 
 	query := `
-		SELECT order_id, id, product_id, quantity, unit_price, created_at
+		SELECT id, order_id, product_id, quantity, unit_price, created_at
 		FROM order_items
 		WHERE order_id = ANY($1)
 	`
 
-	itemsRows, err := r.DB.QueryContext(ctx, query, pq.Array(orderIDs))
+	rows, err := r.DB.QueryContext(ctx, query, pq.Array(orderIDs))
 	if err != nil {
 		return fmt.Errorf("failed to get the orders: %w", err)
 	}
-	defer closeRows(itemsRows)
+	defer closeRows(rows)
 
-	itemsByOrderID := make(map[uuid.UUID][]models.OrderItem)
-
-	for itemsRows.Next() {
+	for rows.Next() {
 		var item models.OrderItem
 
-		scanErr := itemsRows.Scan(&item.OrderID, &item.ID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.CreatedAt)
-		if scanErr != nil {
-			return fmt.Errorf("failed to scan order item: %w", scanErr)
+		err := rows.Scan(&item.ID, &item.OrderID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.CreatedAt)
+		if err != nil {
+			return fmt.Errorf("failed to scan order item: %w", err)
 		}
 
-		itemsByOrderID[item.OrderID] = append(itemsByOrderID[item.OrderID], item)
+		if idx, ok := orderMap[item.OrderID]; ok {
+			orders[idx].Items = append(orders[idx].Items, item)
+		}
 	}
 
-	if err := itemsRows.Err(); err != nil {
+	if err := rows.Err(); err != nil {
 		return fmt.Errorf("error during order items rows iteration: %w", err)
-	}
-
-	for i := range orders {
-		if items, ok := itemsByOrderID[orders[i].ID]; ok {
-			orders[i].Items = items
-		} else {
-			orders[i].Items = []models.OrderItem{}
-		}
 	}
 
 	return nil
