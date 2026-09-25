@@ -2,8 +2,6 @@ package repository
 
 import (
 	"context"
-	"strconv"
-	"strings"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -13,6 +11,7 @@ import (
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type OrderRepository interface {
@@ -55,32 +54,26 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 		return nil
 	}
 
-	// Insert order items in batch
-	valueArgs := make([]any, 0, len(order.Items)*5)
-	var queryBuilder strings.Builder
-	queryBuilder.WriteString("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ") // nolint:gosec // NOSONAR false positive for parameter placeholders construction
+	// Insert order items in batch using PostgreSQL UNNEST
+	itemIDs := make([]uuid.UUID, len(order.Items))
+	productIDs := make([]uuid.UUID, len(order.Items))
+	quantities := make([]int, len(order.Items))
+	unitPrices := make([]float64, len(order.Items))
 
 	for i, item := range order.Items {
-		if i > 0 {
-			queryBuilder.WriteString(", ")
-		}
-		baseParam := i * 5
-		queryBuilder.WriteString("($")
-		queryBuilder.WriteString(strconv.Itoa(baseParam + 1))
-		queryBuilder.WriteString(", $")
-		queryBuilder.WriteString(strconv.Itoa(baseParam + 2))
-		queryBuilder.WriteString(", $")
-		queryBuilder.WriteString(strconv.Itoa(baseParam + 3))
-		queryBuilder.WriteString(", $")
-		queryBuilder.WriteString(strconv.Itoa(baseParam + 4))
-		queryBuilder.WriteString(", $")
-		queryBuilder.WriteString(strconv.Itoa(baseParam + 5))
-		queryBuilder.WriteString(", NOW())")
-
-		valueArgs = append(valueArgs, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+		itemIDs[i] = item.ID
+		productIDs[i] = item.ProductID
+		quantities[i] = item.Quantity
+		unitPrices[i] = item.UnitPrice
 	}
 
-	_, err = r.DB.ExecContext(dbCtx, queryBuilder.String(), valueArgs...) // #nosec G201 -- batch insert placeholders constructed dynamically
+	batchQuery := `
+		INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
+		SELECT *, $2, NOW()
+		FROM UNNEST($1::uuid[], $3::uuid[], $4::int[], $5::numeric[])
+	`
+
+	_, err = r.DB.ExecContext(dbCtx, batchQuery, pq.Array(itemIDs), order.ID, pq.Array(productIDs), pq.Array(quantities), pq.Array(unitPrices))
 	if err != nil {
 		return fmt.Errorf("failed to insert order items: %w", err)
 	}

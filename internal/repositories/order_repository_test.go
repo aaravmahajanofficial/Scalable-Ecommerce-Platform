@@ -12,6 +12,7 @@ import (
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	repository "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -89,7 +90,16 @@ func TestCreateOrder(t *testing.T) {
         INSERT INTO orders (id, customer_id, status, total_amount, payment_status, payment_intent_id, shipping_address, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
     `)
-	expectedBatchItemInsertSQL := regexp.QuoteMeta(`INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ($1, $2, $3, $4, $5, NOW()), ($6, $7, $8, $9, $10, NOW())`)
+	expectedBatchItemInsertSQL := regexp.QuoteMeta(`
+		INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
+		SELECT *, $2, NOW()
+		FROM UNNEST($1::uuid[], $3::uuid[], $4::int[], $5::numeric[])
+	`)
+
+	itemIDs := []uuid.UUID{testOrder.Items[0].ID, testOrder.Items[1].ID}
+	productIDs := []uuid.UUID{testOrder.Items[0].ProductID, testOrder.Items[1].ProductID}
+	quantities := []int{testOrder.Items[0].Quantity, testOrder.Items[1].Quantity}
+	unitPrices := []float64{testOrder.Items[0].UnitPrice, testOrder.Items[1].UnitPrice}
 
 	t.Run("Success - Create Order", func(t *testing.T) {
 		// Expect the order insertion
@@ -100,8 +110,11 @@ func TestCreateOrder(t *testing.T) {
 		// Expect batch item insertion
 		mock.ExpectExec(expectedBatchItemInsertSQL).
 			WithArgs(
-				testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice,
-				testOrder.Items[1].ID, testOrder.ID, testOrder.Items[1].ProductID, testOrder.Items[1].Quantity, testOrder.Items[1].UnitPrice,
+				pq.Array(itemIDs),
+				testOrder.ID,
+				pq.Array(productIDs),
+				pq.Array(quantities),
+				pq.Array(unitPrices),
 			).
 			WillReturnResult(sqlmock.NewResult(2, 2))
 
@@ -150,8 +163,11 @@ func TestCreateOrder(t *testing.T) {
 		// Expect batch item insertion to fail
 		mock.ExpectExec(expectedBatchItemInsertSQL).
 			WithArgs(
-				testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice,
-				testOrder.Items[1].ID, testOrder.ID, testOrder.Items[1].ProductID, testOrder.Items[1].Quantity, testOrder.Items[1].UnitPrice,
+				pq.Array(itemIDs),
+				testOrder.ID,
+				pq.Array(productIDs),
+				pq.Array(quantities),
+				pq.Array(unitPrices),
 			).
 			WillReturnError(dbErr)
 
