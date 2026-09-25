@@ -12,7 +12,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCheckLoginRateLimit_Success(t *testing.T) {
+type rateLimitTestEnv struct {
+	repo     RateLimitRepository
+	mock     redismock.ClientMock
+	username string
+	key      string
+	now      int64
+}
+
+func newTestRateLimitEnv(t *testing.T) rateLimitTestEnv {
+	t.Helper()
+
 	client, mock := redismock.NewClientMock()
 	cfg := &config.Config{
 		RateConfig: config.RateConfig{
@@ -21,114 +31,84 @@ func TestCheckLoginRateLimit_Success(t *testing.T) {
 		},
 	}
 
-	repo := NewRateLimitRepo(client, cfg)
 	username := "testuser"
-	key := "login_attempts:" + username
 
-	now := time.Now().Unix()
+	return rateLimitTestEnv{
+		repo:     NewRateLimitRepo(client, cfg),
+		mock:     mock,
+		username: username,
+		key:      "login_attempts:" + username,
+		now:      time.Now().Unix(),
+	}
+}
 
-	mock.Regexp().ExpectZRemRangeByScore(key, "0", ".*").SetVal(0)
-	mock.ExpectZAdd(key, redis.Z{Score: float64(now), Member: now}).SetVal(1)
-	mock.ExpectZCard(key).SetVal(2)
-	mock.ExpectExpire(key, 60*time.Second).SetVal(true)
+func mockPipelineSuccess(env rateLimitTestEnv, count int64) {
+	env.mock.Regexp().ExpectZRemRangeByScore(env.key, "0", ".*").SetVal(0)
+	env.mock.ExpectZAdd(env.key, redis.Z{Score: float64(env.now), Member: env.now}).SetVal(1)
+	env.mock.ExpectZCard(env.key).SetVal(count)
+	env.mock.ExpectExpire(env.key, 60*time.Second).SetVal(true)
+}
 
-	allowed, remaining, resetIn, err := repo.CheckLoginRateLimit(context.Background(), username)
+func TestCheckLoginRateLimit_Success(t *testing.T) {
+	env := newTestRateLimitEnv(t)
+	mockPipelineSuccess(env, 2)
+
+	allowed, remaining, resetIn, err := env.repo.CheckLoginRateLimit(context.Background(), env.username)
 
 	assert.NoError(t, err)
 	assert.True(t, allowed)
 	assert.Equal(t, 3, remaining)
 	assert.Equal(t, 0, resetIn)
-	assert.NoError(t, mock.ExpectationsWereMet())
+	assert.NoError(t, env.mock.ExpectationsWereMet())
 }
 
 func TestCheckLoginRateLimit_Exceeded(t *testing.T) {
-	client, mock := redismock.NewClientMock()
-	cfg := &config.Config{
-		RateConfig: config.RateConfig{
-			MaxAttempts: 5,
-			WindowSize:  60 * time.Second,
-		},
-	}
+	env := newTestRateLimitEnv(t)
+	mockPipelineSuccess(env, 5)
 
-	repo := NewRateLimitRepo(client, cfg)
-	username := "testuser"
-	key := "login_attempts:" + username
-	now := time.Now().Unix()
-
-	mock.Regexp().ExpectZRemRangeByScore(key, "0", ".*").SetVal(0)
-	mock.ExpectZAdd(key, redis.Z{Score: float64(now), Member: now}).SetVal(1)
-	mock.ExpectZCard(key).SetVal(5)
-	mock.ExpectExpire(key, 60*time.Second).SetVal(true)
-
-	mock.ExpectZRangeArgsWithScores(redis.ZRangeArgs{
-		Key: key, Start: 0, Stop: 0,
+	env.mock.ExpectZRangeArgsWithScores(redis.ZRangeArgs{
+		Key: env.key, Start: 0, Stop: 0,
 	}).SetVal([]redis.Z{
-		{Score: float64(now - 10), Member: now - 10},
+		{Score: float64(env.now - 10), Member: env.now - 10},
 	})
 
-	allowed, remaining, resetIn, err := repo.CheckLoginRateLimit(context.Background(), username)
+	allowed, remaining, resetIn, err := env.repo.CheckLoginRateLimit(context.Background(), env.username)
 
 	assert.NoError(t, err)
 	assert.False(t, allowed)
 	assert.Equal(t, 0, remaining)
 	assert.True(t, resetIn > 0)
-	assert.NoError(t, mock.ExpectationsWereMet())
+	assert.NoError(t, env.mock.ExpectationsWereMet())
 }
 
 func TestCheckLoginRateLimit_PipelineError(t *testing.T) {
-	client, mock := redismock.NewClientMock()
-	cfg := &config.Config{
-		RateConfig: config.RateConfig{
-			MaxAttempts: 5,
-			WindowSize:  60 * time.Second,
-		},
-	}
+	env := newTestRateLimitEnv(t)
+	env.mock.Regexp().ExpectZRemRangeByScore(env.key, "0", ".*").SetErr(errors.New("redis err"))
 
-	repo := NewRateLimitRepo(client, cfg)
-	username := "testuser"
-	key := "login_attempts:" + username
-
-	mock.Regexp().ExpectZRemRangeByScore(key, "0", ".*").SetErr(errors.New("redis err"))
-
-	allowed, remaining, resetIn, err := repo.CheckLoginRateLimit(context.Background(), username)
+	allowed, remaining, resetIn, err := env.repo.CheckLoginRateLimit(context.Background(), env.username)
 
 	assert.Error(t, err)
 	assert.False(t, allowed)
 	assert.Equal(t, 0, remaining)
 	assert.Equal(t, 0, resetIn)
-	assert.NoError(t, mock.ExpectationsWereMet())
+	assert.NoError(t, env.mock.ExpectationsWereMet())
 }
 
 func TestCheckLoginRateLimit_OldestAttemptError(t *testing.T) {
-	client, mock := redismock.NewClientMock()
-	cfg := &config.Config{
-		RateConfig: config.RateConfig{
-			MaxAttempts: 5,
-			WindowSize:  60 * time.Second,
-		},
-	}
+	env := newTestRateLimitEnv(t)
+	mockPipelineSuccess(env, 5)
 
-	repo := NewRateLimitRepo(client, cfg)
-	username := "testuser"
-	key := "login_attempts:" + username
-	now := time.Now().Unix()
-
-	mock.Regexp().ExpectZRemRangeByScore(key, "0", ".*").SetVal(0)
-	mock.ExpectZAdd(key, redis.Z{Score: float64(now), Member: now}).SetVal(1)
-	mock.ExpectZCard(key).SetVal(5)
-	mock.ExpectExpire(key, 60*time.Second).SetVal(true)
-
-	mock.ExpectZRangeArgsWithScores(redis.ZRangeArgs{
-		Key: key, Start: 0, Stop: 0,
+	env.mock.ExpectZRangeArgsWithScores(redis.ZRangeArgs{
+		Key: env.key, Start: 0, Stop: 0,
 	}).SetErr(errors.New("zrange error"))
 
-	allowed, remaining, resetIn, err := repo.CheckLoginRateLimit(context.Background(), username)
+	allowed, remaining, resetIn, err := env.repo.CheckLoginRateLimit(context.Background(), env.username)
 
 	assert.Error(t, err)
 	assert.False(t, allowed)
 	assert.Equal(t, 0, remaining)
 	assert.Equal(t, 60, resetIn)
-	assert.NoError(t, mock.ExpectationsWereMet())
+	assert.NoError(t, env.mock.ExpectationsWereMet())
 }
 
 func TestNewRedisClient_InvalidURL(t *testing.T) {
