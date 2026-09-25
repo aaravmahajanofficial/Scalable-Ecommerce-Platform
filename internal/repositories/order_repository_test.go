@@ -89,10 +89,7 @@ func TestCreateOrder(t *testing.T) {
         INSERT INTO orders (id, customer_id, status, total_amount, payment_status, payment_intent_id, shipping_address, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
     `)
-	expectedItemInsertSQL := regexp.QuoteMeta(`
-            INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
-        `)
+	expectedBatchItemInsertSQL := regexp.QuoteMeta(`INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES ($1, $2, $3, $4, $5, NOW()), ($6, $7, $8, $9, $10, NOW())`)
 
 	t.Run("Success - Create Order", func(t *testing.T) {
 		// Expect the order insertion
@@ -100,21 +97,31 @@ func TestCreateOrder(t *testing.T) {
 			WithArgs(testOrder.ID, testOrder.CustomerID, testOrder.Status, testOrder.TotalAmount, testOrder.PaymentStatus, testOrder.PaymentIntentID, shippingAddrJSON).
 			WillReturnResult(sqlmock.NewResult(1, 1)) // Simulate 1 row inserted
 
-		// Expect the first item insertion
-		mock.ExpectExec(expectedItemInsertSQL).
-			WithArgs(testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice).
-			WillReturnResult(sqlmock.NewResult(1, 1))
-
-		// Expect the second item insertion
-		mock.ExpectExec(expectedItemInsertSQL).
-			WithArgs(testOrder.Items[1].ID, testOrder.ID, testOrder.Items[1].ProductID, testOrder.Items[1].Quantity, testOrder.Items[1].UnitPrice).
-			WillReturnResult(sqlmock.NewResult(1, 1))
+		// Expect batch item insertion
+		mock.ExpectExec(expectedBatchItemInsertSQL).
+			WithArgs(
+				testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice,
+				testOrder.Items[1].ID, testOrder.ID, testOrder.Items[1].ProductID, testOrder.Items[1].Quantity, testOrder.Items[1].UnitPrice,
+			).
+			WillReturnResult(sqlmock.NewResult(2, 2))
 
 		// Act
 		err := repo.CreateOrder(ctx, testOrder)
 
 		// Assert
 		assert.NoError(t, err, "CreateOrder should succeed")
+	})
+
+	t.Run("Success - Create Order With No Items", func(t *testing.T) {
+		orderNoItems := *testOrder
+		orderNoItems.Items = nil
+
+		mock.ExpectExec(expectedOrderInsertSQL).
+			WithArgs(orderNoItems.ID, orderNoItems.CustomerID, orderNoItems.Status, orderNoItems.TotalAmount, orderNoItems.PaymentStatus, orderNoItems.PaymentIntentID, shippingAddrJSON).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+
+		err := repo.CreateOrder(ctx, &orderNoItems)
+		assert.NoError(t, err, "CreateOrder without items should succeed")
 	})
 
 	t.Run("Failure - Order Insert Error", func(t *testing.T) {
@@ -140,9 +147,12 @@ func TestCreateOrder(t *testing.T) {
 			WithArgs(testOrder.ID, testOrder.CustomerID, testOrder.Status, testOrder.TotalAmount, testOrder.PaymentStatus, testOrder.PaymentIntentID, shippingAddrJSON).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 
-		// Expect the first item insertion to fail
-		mock.ExpectExec(expectedItemInsertSQL).
-			WithArgs(testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice).
+		// Expect batch item insertion to fail
+		mock.ExpectExec(expectedBatchItemInsertSQL).
+			WithArgs(
+				testOrder.Items[0].ID, testOrder.ID, testOrder.Items[0].ProductID, testOrder.Items[0].Quantity, testOrder.Items[0].UnitPrice,
+				testOrder.Items[1].ID, testOrder.ID, testOrder.Items[1].ProductID, testOrder.Items[1].Quantity, testOrder.Items[1].UnitPrice,
+			).
 			WillReturnError(dbErr)
 
 		// Act
@@ -150,7 +160,7 @@ func TestCreateOrder(t *testing.T) {
 
 		// Assert
 		require.Error(t, err, "CreateOrder should fail when item insert fails")
-		assert.ErrorContains(t, err, "failed to insert an order item", "Error message should indicate item insert failure")
+		assert.ErrorContains(t, err, "failed to insert order items", "Error message should indicate item insert failure")
 		assert.ErrorIs(t, err, dbErr, "Error should wrap the original DB error")
 	})
 }

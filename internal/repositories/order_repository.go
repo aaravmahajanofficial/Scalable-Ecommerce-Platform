@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -49,17 +50,25 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 		return fmt.Errorf("failed to insert order: %w", err)
 	}
 
-	// Insert order items
-	for _, item := range order.Items {
-		query := `
-			INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at)
-			VALUES ($1, $2, $3, $4, $5, NOW())
-		`
+	if len(order.Items) == 0 {
+		return nil
+	}
 
-		_, err := r.DB.ExecContext(dbCtx, query, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
-		if err != nil {
-			return fmt.Errorf("failed to insert an order item: %w", err)
-		}
+	// Insert order items in batch
+	valueStrings := make([]string, 0, len(order.Items))
+	valueArgs := make([]any, 0, len(order.Items)*5)
+
+	for i, item := range order.Items {
+		baseParam := i * 5
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, NOW())", baseParam+1, baseParam+2, baseParam+3, baseParam+4, baseParam+5))
+		valueArgs = append(valueArgs, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
+	}
+
+	batchQuery := fmt.Sprintf("INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, created_at) VALUES %s", strings.Join(valueStrings, ", "))
+
+	_, err = r.DB.ExecContext(dbCtx, batchQuery, valueArgs...)
+	if err != nil {
+		return fmt.Errorf("failed to insert order items: %w", err)
 	}
 
 	return nil
