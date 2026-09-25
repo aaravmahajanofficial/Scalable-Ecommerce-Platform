@@ -80,7 +80,7 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 		valueArgs = append(valueArgs, item.ID, order.ID, item.ProductID, item.Quantity, item.UnitPrice)
 	}
 
-	_, err = r.DB.ExecContext(dbCtx, queryBuilder.String(), valueArgs...) // NOSONAR
+	_, err = r.DB.ExecContext(dbCtx, queryBuilder.String(), valueArgs...) // #nosec G201 -- batch insert placeholders constructed dynamically
 	if err != nil {
 		return fmt.Errorf("failed to insert order items: %w", err)
 	}
