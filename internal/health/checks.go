@@ -23,7 +23,7 @@ import (
 type Endpoint struct {
 	DB           *sql.DB
 	RedisClient  *redis.Client
-	StripeClient *stripeClient.Client
+	StripeClient stripeClient.Client
 }
 
 func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Handler, error) {
