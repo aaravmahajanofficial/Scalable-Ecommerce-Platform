@@ -23,7 +23,7 @@ import (
 type Endpoint struct {
 	DB           *sql.DB
 	RedisClient  *redis.Client
-	StripeClient *stripeClient.Client
+	StripeClient stripeClient.Client
 }
 
 func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Handler, error) {
@@ -70,7 +70,7 @@ func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Han
 	return h.Handler(), nil
 }
 
-func checkStripeHealth(ctx context.Context, client *stripeClient.Client) error {
+func checkStripeHealth(ctx context.Context, client stripeClient.Client) error {
 	if client == nil {
 		return errors.New("stripe client is not initialized")
 	}
