@@ -1,6 +1,7 @@
 package config
 
 import (
+	"flag"
 	"os"
 	"path/filepath"
 	"testing"
@@ -97,23 +98,34 @@ cache:
 `
 	resetEnvAndArgs := func() {
 		originalArgs := os.Args
+		originalCommandLine := flag.CommandLine
 
-		t.Cleanup(func() { os.Args = originalArgs })
+		t.Cleanup(func() {
+			os.Args = originalArgs
+			flag.CommandLine = originalCommandLine
+		})
+
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 		unsetEnv(t, "CONFIG_PATH")
 		unsetEnv(t, "ENV")
 		unsetEnv(t, "PG_HOST")
 		unsetEnv(t, "REDIS_HOST")
+		unsetEnv(t, "PG_USER")
+		unsetEnv(t, "PG_PASSWORD")
+		unsetEnv(t, "PG_DBNAME")
+		unsetEnv(t, "REDIS_USER")
+		unsetEnv(t, "REDIS_PASSWORD")
+		unsetEnv(t, "JWT_KEY")
 	}
 
-	// Verifies values from YAML are loaded correctly
+	// Verifies values from YAML are loaded correctly via MustLoad
 	t.Run("Load from CONFIG_PATH env var", func(t *testing.T) {
 		resetEnvAndArgs()
 
 		configPath, _ := createTempConfigFile(t, validYAML)
 		t.Setenv("CONFIG_PATH", configPath)
 
-		cfg, err := LoadConfigFromPath(configPath)
-		require.NoError(t, err)
+		cfg := MustLoad()
 		require.NotNil(t, cfg)
 		assert.Equal(t, "test", cfg.Env)
 		assert.Equal(t, ":8081", cfg.HTTPServer.Addr)
@@ -131,8 +143,7 @@ cache:
 
 		os.Args = []string{"cmd", "-config", configPath}
 
-		cfg, err := LoadConfigFromPath(configPath)
-		require.NoError(t, err)
+		cfg := MustLoad()
 		require.NotNil(t, cfg)
 		assert.Equal(t, "test", cfg.Env)
 		assert.Equal(t, "dbhost", cfg.Database.Host)
@@ -142,13 +153,11 @@ cache:
 	t.Run("Load from default ./config/local.yaml", func(t *testing.T) {
 		resetEnvAndArgs()
 
-		configPath, _ := createTempConfigFile(t, validYAML)
 		os.Args = []string{"cmd"}
 		cleanupDefault := createTempDefaultConfigFile(t, validYAML)
 		t.Cleanup(cleanupDefault)
 
-		cfg, err := LoadConfigFromPath(configPath)
-		require.NoError(t, err)
+		cfg := MustLoad()
 		require.NotNil(t, cfg)
 		assert.Equal(t, "test", cfg.Env)
 		assert.Equal(t, "dbhost", cfg.Database.Host)
@@ -171,8 +180,7 @@ cache:
 		t.Setenv("REDIS_USER", "prodredisuser")
 		t.Setenv("REDIS_PASSWORD", "prodredispass")
 
-		cfg, err := LoadConfigFromPath(configPath)
-		require.NoError(t, err)
+		cfg := MustLoad()
 		require.NotNil(t, cfg)
 		assert.Equal(t, "production", cfg.Env)
 		assert.Equal(t, "prod-db", cfg.Database.Host)
@@ -180,6 +188,65 @@ cache:
 		assert.Equal(t, "prodpass", cfg.Database.Password)
 		assert.Equal(t, "prodredispass", cfg.RedisConnect.Password)
 		assert.Equal(t, "dummy_prod_jwt_key_for_testing", cfg.Security.JWTKey)
+	})
+}
+
+func TestLoadConfigFromPath_Errors(t *testing.T) {
+	t.Run("Empty config path", func(t *testing.T) {
+		cfg, err := LoadConfigFromPath("")
+		assert.Error(t, err)
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "config path is empty")
+	})
+
+	t.Run("Non-existent config path", func(t *testing.T) {
+		cfg, err := LoadConfigFromPath("/path/does/not/exist.yaml")
+		assert.Error(t, err)
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "config file does not exist")
+	})
+
+	t.Run("Invalid YAML syntax", func(t *testing.T) {
+		invalidYAML := `
+env: "test"
+http_server:
+  ADDRESS: [invalid yaml structure: {
+`
+		configPath, cleanup := createTempConfigFile(t, invalidYAML)
+		t.Cleanup(cleanup)
+
+		cfg, err := LoadConfigFromPath(configPath)
+		assert.Error(t, err)
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "cannot read config file")
+	})
+
+	t.Run("Invalid environment variable value", func(t *testing.T) {
+		validYAML := `
+env: "test"
+http_server: {address: ":8080"}
+database:
+  PG_USER: "user"
+  PG_PASSWORD: "pass"
+  PG_DBNAME: "dbname"
+redis:
+  REDIS_USER: "ruser"
+  REDIS_PASSWORD: "rpass"
+security:
+  JWT_KEY: "secret"
+`
+		configPath, cleanup := createTempConfigFile(t, validYAML)
+		t.Cleanup(cleanup)
+
+		t.Setenv("CONN_MAX_LIFETIME", "invalid-duration-value")
+		t.Cleanup(func() {
+			unsetEnv(t, "CONN_MAX_LIFETIME")
+		})
+
+		cfg, err := LoadConfigFromPath(configPath)
+		assert.Error(t, err)
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "invalid duration")
 	})
 }
 
