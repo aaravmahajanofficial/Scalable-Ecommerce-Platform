@@ -3,7 +3,9 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
@@ -128,7 +130,9 @@ func (r *productRepository) UpdateProducts(ctx context.Context, products []*mode
 		return fmt.Errorf("beginning transaction for products update: %w", err)
 	}
 	defer func() {
-		_ = tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			slog.Error("failed to rollback transaction", slog.Any("error", rollbackErr))
+		}
 	}()
 
 	stmt, err := tx.PrepareContext(dbCtx, `
@@ -140,7 +144,9 @@ func (r *productRepository) UpdateProducts(ctx context.Context, products []*mode
 		return fmt.Errorf("preparing update statement: %w", err)
 	}
 	defer func() {
-		_ = stmt.Close()
+		if closeErr := stmt.Close(); closeErr != nil {
+			slog.Error("failed to close statement", slog.Any("error", closeErr))
+		}
 	}()
 
 	for _, product := range products {

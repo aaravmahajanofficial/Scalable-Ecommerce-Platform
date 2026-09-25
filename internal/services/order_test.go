@@ -541,7 +541,6 @@ func TestUpdateOrderStatus_UpdateRepoError(t *testing.T) {
 	mockOrderRepo.AssertExpectations(t)
 }
 
-
 func BenchmarkCreateOrder(b *testing.B) {
 	mockOrderRepo := mocks.NewMockOrderRepository(b)
 	mockCartRepo := mocks.NewMockCartRepository(b)
@@ -575,6 +574,8 @@ func BenchmarkCreateOrder(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		_, _ = orderService.CreateOrder(ctx, req)
+		if _, err := orderService.CreateOrder(ctx, req); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

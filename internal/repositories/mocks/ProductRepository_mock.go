@@ -302,7 +302,6 @@ func (_c *MockProductRepository_UpdateProduct_Call) RunAndReturn(run func(ctx co
 	return _c
 }
 
-
 // UpdateProducts provides a mock function for the type MockProductRepository
 func (_mock *MockProductRepository) UpdateProducts(ctx context.Context, products []*models.Product) error {
 	ret := _mock.Called(ctx, products)
