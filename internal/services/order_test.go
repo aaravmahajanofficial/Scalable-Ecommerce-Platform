@@ -100,7 +100,7 @@ func TestCreateOrder_CartNotFound(t *testing.T) {
 
 	// Mock Call Cart Repository
 	mockErr := errors.New("mock cart repo error")
-	mockCartRepo.On("GetCartByCustomerID", ctx, customerID).Return(nil, mockErr)
+	mockCartRepo.On("GetCartByCustomerID", ctx, customerID).Return(nil, mockErr).Once()
 
 	req := &models.CreateOrderRequest{CustomerID: customerID}
 
