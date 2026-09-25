@@ -17,6 +17,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func TestNewUserService(t *testing.T) {
+	mockUserRepo := mocks.NewMockUserRepository(t)
+	mockRedisRepo := mocks.NewMockRateLimitRepository(t)
+	jwtKey := []byte("test-key")
+
+	svc := service.NewUserService(mockUserRepo, mockRedisRepo, jwtKey)
+
+	assert.NotNil(t, svc)
+}
+
 func TestUserService_Register(t *testing.T) {
 	// Arrange
 	mockUserRepo := mocks.NewMockUserRepository(t)
