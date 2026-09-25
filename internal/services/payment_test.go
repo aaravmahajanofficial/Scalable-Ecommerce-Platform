@@ -690,3 +690,42 @@ func TestProcessWebhook(t *testing.T) {
 		mockStripeClient.AssertExpectations(t)
 	})
 }
+
+func TestExtractPaymentIntentID(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		data := map[string]any{
+			"id": "pi_123456789",
+		}
+		id, err := service.ExtractPaymentIntentID(data, "id")
+		assert.NoError(t, err)
+		assert.Equal(t, "pi_123456789", id)
+	})
+
+	t.Run("Failure - Key Not Found", func(t *testing.T) {
+		data := map[string]any{
+			"other_key": "val",
+		}
+		id, err := service.ExtractPaymentIntentID(data, "id")
+		assert.Error(t, err)
+		assert.Empty(t, id)
+
+		appErr, ok := appErrors.IsAppError(err)
+		assert.True(t, ok)
+		assert.Equal(t, appErrors.ErrCodeInternal, appErr.Code)
+		assert.Contains(t, err.Error(), "Payment intent ID not found in Stripe response")
+	})
+
+	t.Run("Failure - Value Not A String", func(t *testing.T) {
+		data := map[string]any{
+			"id": 12345,
+		}
+		id, err := service.ExtractPaymentIntentID(data, "id")
+		assert.Error(t, err)
+		assert.Empty(t, id)
+
+		appErr, ok := appErrors.IsAppError(err)
+		assert.True(t, ok)
+		assert.Equal(t, appErrors.ErrCodeInternal, appErr.Code)
+		assert.Contains(t, err.Error(), "Payment intent ID is not a string in Stripe response")
+	})
+}
