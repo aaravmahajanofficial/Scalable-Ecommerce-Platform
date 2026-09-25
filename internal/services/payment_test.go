@@ -16,10 +16,25 @@ import (
 	"github.com/stripe/stripe-go/v86"
 )
 
-func TestNewPaymentService(t *testing.T) {
+func setupPaymentServiceTest(t *testing.T) (service.PaymentService, *repoMocks.MockPaymentRepository, *stripeMocks.MockClient) {
+	t.Helper()
 	mockRepo := repoMocks.NewMockPaymentRepository(t)
 	mockStripeClient := stripeMocks.NewMockClient(t)
-	svc := service.NewPaymentService(mockRepo, mockStripeClient)
+	paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+	return paymentService, mockRepo, mockStripeClient
+}
+
+func assertAppError(t *testing.T, err error, expectedCode string) *appErrors.AppError {
+	t.Helper()
+	assert.Error(t, err)
+	appErr, ok := appErrors.IsAppError(err)
+	assert.True(t, ok)
+	assert.Equal(t, expectedCode, appErr.Code)
+	return appErr
+}
+
+func TestNewPaymentService(t *testing.T) {
+	svc, _, _ := setupPaymentServiceTest(t)
 	assert.NotNil(t, svc)
 }
 
@@ -74,10 +89,7 @@ func TestCreatePayment(t *testing.T) {
 	}
 
 	t.Run("Success - Card Payment", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+		paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
 
 		mockStripeClient.On("CreatePaymentIntent", reqCard.Amount, reqCard.Currency, reqCard.Description, reqCard.CustomerID).Return(mockPaymentIntent, nil).Once()
 		mockStripeClient.On("CreatePaymentMethodFromToken", reqCard.Token).Return(mockPaymentMethod, nil).Once()
@@ -86,10 +98,8 @@ func TestCreatePayment(t *testing.T) {
 			return p.ID == testPaymentIntentID && p.CustomerID == reqCard.CustomerID && p.Amount == reqCard.Amount
 		})).Return(nil).Once()
 
-		// Act
 		resp, err := paymentService.CreatePayment(ctx, reqCard)
 
-		// Assert
 		assert.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, testClientSecret, resp.ClientSecret)
@@ -104,10 +114,7 @@ func TestCreatePayment(t *testing.T) {
 	})
 
 	t.Run("Success - Non-Card Payment", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+		paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
 
 		mockPaymentIntentOther := &stripe.PaymentIntent{
 			ID:           "pi_789",
@@ -123,7 +130,6 @@ func TestCreatePayment(t *testing.T) {
 			return p.ID == mockPaymentIntentOther.ID && p.CustomerID == reqOther.CustomerID && p.Amount == reqOther.Amount
 		})).Return(nil).Once()
 
-		// Act
 		resp, err := paymentService.CreatePayment(ctx, reqOther)
 
 		assert.NoError(t, err)
@@ -133,7 +139,6 @@ func TestCreatePayment(t *testing.T) {
 		assert.NotNil(t, resp.Payment)
 		assert.Equal(t, mockPaymentIntentOther.ID, resp.Payment.ID)
 
-		// Assert
 		mockRepo.AssertExpectations(t)
 		mockStripeClient.AssertExpectations(t)
 		mockStripeClient.AssertNotCalled(t, "CreatePaymentMethodFromToken")
@@ -141,51 +146,32 @@ func TestCreatePayment(t *testing.T) {
 	})
 
 	t.Run("Failure - CreatePaymentIntent Fails", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+		paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
 
 		stripeErr := errors.New("stripe API error")
 		mockStripeClient.On("CreatePaymentIntent", reqCard.Amount, reqCard.Currency, reqCard.Description, reqCard.CustomerID).Return(nil, stripeErr).Once()
 
-		// Act
 		resp, err := paymentService.CreatePayment(ctx, reqCard)
 
-		// Assert
-		assert.Error(t, err)
 		assert.Nil(t, resp)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeThirdPartyError, appErr.Code)
-		assert.ErrorIs(t, err, stripeErr) // Check underlying error
+		assertAppError(t, err, appErrors.ErrCodeThirdPartyError)
+		assert.ErrorIs(t, err, stripeErr)
 
 		mockRepo.AssertNotCalled(t, "CreatePayment")
 		mockStripeClient.AssertExpectations(t)
 	})
 
 	t.Run("Failure - CreatePaymentMethodFromToken Fails", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+		paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
 
 		stripeErr := errors.New("stripe token error")
-
 		mockStripeClient.On("CreatePaymentIntent", reqCard.Amount, reqCard.Currency, reqCard.Description, reqCard.CustomerID).Return(mockPaymentIntent, nil).Once()
 		mockStripeClient.On("CreatePaymentMethodFromToken", reqCard.Token).Return(nil, stripeErr).Once()
 
-		// Act
 		resp, err := paymentService.CreatePayment(ctx, reqCard)
 
-		// Assert
-		assert.Error(t, err)
 		assert.Nil(t, resp)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeThirdPartyError, appErr.Code)
+		assertAppError(t, err, appErrors.ErrCodeThirdPartyError)
 		assert.ErrorIs(t, err, stripeErr)
 
 		mockRepo.AssertNotCalled(t, "CreatePayment")
@@ -194,27 +180,17 @@ func TestCreatePayment(t *testing.T) {
 	})
 
 	t.Run("Failure - AttachPaymentMethodToIntent Fails", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+		paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
 
 		stripeErr := errors.New("stripe attach error")
-
 		mockStripeClient.On("CreatePaymentIntent", reqCard.Amount, reqCard.Currency, reqCard.Description, reqCard.CustomerID).Return(mockPaymentIntent, nil).Once()
 		mockStripeClient.On("CreatePaymentMethodFromToken", reqCard.Token).Return(mockPaymentMethod, nil).Once()
 		mockStripeClient.On("AttachPaymentMethodToIntent", mockPaymentMethod.ID, mockPaymentIntent.ID).Return(stripeErr).Once()
 
-		// Act
 		resp, err := paymentService.CreatePayment(ctx, reqCard)
 
-		// Assert
-		assert.Error(t, err)
 		assert.Nil(t, resp)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeThirdPartyError, appErr.Code)
+		assertAppError(t, err, appErrors.ErrCodeThirdPartyError)
 		assert.ErrorIs(t, err, stripeErr)
 
 		mockRepo.AssertNotCalled(t, "CreatePayment")
@@ -222,28 +198,18 @@ func TestCreatePayment(t *testing.T) {
 	})
 
 	t.Run("Failure - Repository CreatePayment Fails", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+		paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
 
 		dbErr := errors.New("database insert error")
-
 		mockStripeClient.On("CreatePaymentIntent", reqCard.Amount, reqCard.Currency, reqCard.Description, reqCard.CustomerID).Return(mockPaymentIntent, nil).Once()
 		mockStripeClient.On("CreatePaymentMethodFromToken", reqCard.Token).Return(mockPaymentMethod, nil).Once()
 		mockStripeClient.On("AttachPaymentMethodToIntent", mockPaymentMethod.ID, mockPaymentIntent.ID).Return(nil).Once()
 		mockRepo.On("CreatePayment", ctx, mock.AnythingOfType("*models.Payment")).Return(dbErr).Once()
 
-		// Act
 		resp, err := paymentService.CreatePayment(ctx, reqCard)
 
-		// Assert
-		assert.Error(t, err)
 		assert.Nil(t, resp)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code)
+		assertAppError(t, err, appErrors.ErrCodeDatabaseError)
 		assert.ErrorIs(t, err, dbErr)
 
 		mockRepo.AssertExpectations(t)
@@ -253,7 +219,6 @@ func TestCreatePayment(t *testing.T) {
 
 func TestGetPaymentByID(t *testing.T) {
 	ctx := t.Context()
-	mockStripeClient := stripeMocks.NewMockClient(t)
 
 	testPaymentID := uuid.New().String()
 	expectedPayment := &models.Payment{
@@ -267,99 +232,63 @@ func TestGetPaymentByID(t *testing.T) {
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
+		paymentService, mockRepo, _ := setupPaymentServiceTest(t)
 		mockRepo.On("GetPaymentByID", ctx, testPaymentID).Return(expectedPayment, nil).Once()
 
-		// Act
 		payment, err := paymentService.GetPaymentByID(ctx, testPaymentID)
 
-		// Assert
 		assert.NoError(t, err)
-		assert.NotNil(t, payment)
 		assert.Equal(t, expectedPayment, payment)
-
 		mockRepo.AssertExpectations(t)
 	})
 
 	t.Run("Failure - Repository Error", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
+		paymentService, mockRepo, _ := setupPaymentServiceTest(t)
 		repoErr := errors.New("payment not found in DB")
 		mockRepo.On("GetPaymentByID", ctx, testPaymentID).Return(nil, repoErr).Once()
 
-		// Act
 		payment, err := paymentService.GetPaymentByID(ctx, testPaymentID)
 
-		// Assert
-		assert.Error(t, err)
 		assert.Nil(t, payment)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code) // Service wraps it
+		assertAppError(t, err, appErrors.ErrCodeDatabaseError)
 		assert.ErrorIs(t, err, repoErr)
-
 		mockRepo.AssertExpectations(t)
 	})
 }
 
 func TestListPaymentsByCustomer(t *testing.T) {
 	ctx := t.Context()
-	mockStripeClient := stripeMocks.NewMockClient(t)
 
 	testCustomerID := uuid.New().String()
-	page := 1
-	size := 10
-	expectedTotal := 5
+	page, size, expectedTotal := 1, 10, 5
 	expectedPayments := []*models.Payment{
 		{ID: uuid.New().String(), CustomerID: testCustomerID, Amount: 100},
 		{ID: uuid.New().String(), CustomerID: testCustomerID, Amount: 200},
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
+		paymentService, mockRepo, _ := setupPaymentServiceTest(t)
 		mockRepo.On("ListPaymentsOfCustomer", ctx, testCustomerID, page, size).Return(expectedPayments, expectedTotal, nil).Once()
 
-		// Act
 		payments, total, err := paymentService.ListPaymentsByCustomer(ctx, testCustomerID, page, size)
 
-		// Assert
 		assert.NoError(t, err)
 		assert.Equal(t, expectedPayments, payments)
 		assert.Equal(t, expectedTotal, total)
-
 		mockRepo.AssertExpectations(t)
 	})
 
 	t.Run("Failure - Repository Error", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
+		paymentService, mockRepo, _ := setupPaymentServiceTest(t)
 		repoErr := errors.New("failed to query payments")
 		mockRepo.On("ListPaymentsOfCustomer", ctx, testCustomerID, page, size).Return(nil, 0, repoErr).Once()
 
-		// Act
 		payments, total, err := paymentService.ListPaymentsByCustomer(ctx, testCustomerID, page, size)
 
-		// Assert
-		assert.Error(t, err)
 		assert.Nil(t, payments)
 		assert.Equal(t, 0, total)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code) // Service wraps it
+		assertAppError(t, err, appErrors.ErrCodeDatabaseError)
 		assert.ErrorIs(t, err, repoErr)
-
 		mockRepo.AssertExpectations(t)
 	})
 }
@@ -374,387 +303,212 @@ func TestProcessWebhook(t *testing.T) {
 	eventSucceeded := stripe.Event{
 		ID:   "evt_123",
 		Type: "payment_intent.succeeded",
-		Data: &stripe.EventData{
-			Object: map[string]any{
-				"id": stripePaymentIntentID,
-			},
-		},
+		Data: &stripe.EventData{Object: map[string]any{"id": stripePaymentIntentID}},
 	}
 	eventFailed := stripe.Event{
 		ID:   "evt_456",
 		Type: "payment_intent.payment_failed",
-		Data: &stripe.EventData{
-			Object: map[string]any{
-				"id": stripePaymentIntentID,
-			},
-		},
+		Data: &stripe.EventData{Object: map[string]any{"id": stripePaymentIntentID}},
 	}
 	eventRefunded := stripe.Event{
 		ID:   "evt_789",
 		Type: "charge.refunded",
-		Data: &stripe.EventData{
-			Object: map[string]any{
-				"id":             "ch_xyz",
-				"payment_intent": stripePaymentIntentID,
+		Data: &stripe.EventData{Object: map[string]any{"id": "ch_xyz", "payment_intent": stripePaymentIntentID}},
+	}
+
+	t.Run("Success Scenarios", func(t *testing.T) {
+		successTests := []struct {
+			name           string
+			payload        []byte
+			event          stripe.Event
+			expectedStatus models.PaymentStatus
+			updateCalled   bool
+		}{
+			{
+				name:           "payment_intent.succeeded",
+				payload:        payload,
+				event:          eventSucceeded,
+				expectedStatus: models.PaymentStatusSucceeded,
+				updateCalled:   true,
 			},
-		},
-	}
-	eventOther := stripe.Event{
-		ID:   "evt_000",
-		Type: "customer.created",
-		Data: &stripe.EventData{
-			Object: map[string]any{"id": "cus_123"},
-		},
-	}
-	eventMissingID := stripe.Event{
-		ID:   "evt_bad",
-		Type: "payment_intent.succeeded",
-		Data: &stripe.EventData{
-			Object: map[string]any{
-				"amount": 1000,
+			{
+				name:           "payment_intent.payment_failed",
+				payload:        []byte(`{"id": "evt_456", "type": "payment_intent.payment_failed"}`),
+				event:          eventFailed,
+				expectedStatus: models.PaymentStatusFailed,
+				updateCalled:   true,
 			},
-		},
-	}
+			{
+				name:           "charge.refunded",
+				payload:        []byte(`{"id": "evt_789", "type": "charge.refunded"}`),
+				event:          eventRefunded,
+				expectedStatus: models.PaymentStatusRefunded,
+				updateCalled:   true,
+			},
+			{
+				name:    "Unhandled Event Type",
+				payload: []byte(`{"id": "evt_000", "type": "customer.created"}`),
+				event: stripe.Event{
+					ID:   "evt_000",
+					Type: "customer.created",
+					Data: &stripe.EventData{Object: map[string]any{"id": "cus_123"}},
+				},
+				updateCalled: false,
+			},
+		}
 
-	t.Run("Success - payment_intent.succeeded", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+		for _, tt := range successTests {
+			t.Run(tt.name, func(t *testing.T) {
+				paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
+				mockStripeClient.On("VerifyWebhookSignature", tt.payload, signature).Return(tt.event, nil).Once()
+				if tt.updateCalled {
+					mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, tt.expectedStatus).Return(nil).Once()
+				}
 
-		mockStripeClient.On("VerifyWebhookSignature", payload, signature).Return(eventSucceeded, nil).Once()
-		mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, models.PaymentStatusSucceeded).Return(nil).Once()
+				event, err := paymentService.ProcessWebhook(ctx, tt.payload, signature)
 
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payload, signature)
-
-		// Assert
-		assert.NoError(t, err)
-		assert.Equal(t, eventSucceeded.ID, event.ID)
-		assert.Equal(t, eventSucceeded.Type, event.Type)
-
-		mockRepo.AssertExpectations(t)
-		mockStripeClient.AssertExpectations(t)
+				assert.NoError(t, err)
+				assert.Equal(t, tt.event.ID, event.ID)
+				mockRepo.AssertExpectations(t)
+				mockStripeClient.AssertExpectations(t)
+			})
+		}
 	})
 
-	t.Run("Success - payment_intent.payment_failed", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		payloadFailed := []byte(`{"id": "evt_456", "type": "payment_intent.payment_failed", "data": {"object": {"id": "pi_abc"}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadFailed, signature).Return(eventFailed, nil).Once()
-		mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, models.PaymentStatusFailed).Return(nil).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadFailed, signature)
-
-		// Assert
-		assert.NoError(t, err)
-		assert.Equal(t, eventFailed.ID, event.ID)
-
-		mockRepo.AssertExpectations(t)
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Success - charge.refunded", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		payloadRefunded := []byte(`{"id": "evt_789", "type": "charge.refunded", "data": {"object": {"id": "ch_xyz", "payment_intent": "pi_abc"}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadRefunded, signature).Return(eventRefunded, nil).Once()
-		mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, models.PaymentStatusRefunded).Return(nil).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadRefunded, signature)
-
-		// Assert
-		assert.NoError(t, err)
-		assert.Equal(t, eventRefunded.ID, event.ID)
-
-		mockRepo.AssertExpectations(t)
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Success - Unhandled Event Type", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		payloadOther := []byte(`{"id": "evt_000", "type": "customer.created", "data": {"object": {"id": "cus_123"}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadOther, signature).Return(eventOther, nil).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadOther, signature)
-
-		// Assert
-		assert.NoError(t, err)
-		assert.Equal(t, eventOther.ID, event.ID)
-
-		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Failure - VerifyWebhookSignature Fails", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
+	t.Run("Failure Scenarios", func(t *testing.T) {
 		verifyErr := errors.New("invalid signature")
-		mockStripeClient.On("VerifyWebhookSignature", payload, signature).Return(stripe.Event{}, verifyErr).Once()
+		dbErr := errors.New("db update failed")
 
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payload, signature)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, stripe.Event{}, event)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeThirdPartyError, appErr.Code)
-		assert.ErrorIs(t, err, verifyErr)
-
-		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Failure - Missing Payment Intent ID (Succeeded)", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		payloadMissingID := []byte(`{"id": "evt_bad", "type": "payment_intent.succeeded", "data": {"object": {"amount": 1000}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadMissingID, signature).Return(eventMissingID, nil).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadMissingID, signature)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, eventMissingID.ID, event.ID)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeInternal, appErr.Code)
-		assert.Contains(t, err.Error(), "Payment intent ID not found")
-
-		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Failure - Non-String Payment Intent ID (Succeeded)", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		eventNonStringID := stripe.Event{
-			ID:   "evt_non_string",
-			Type: "payment_intent.succeeded",
-			Data: &stripe.EventData{
-				Object: map[string]any{
-					"id": 12345,
+		failureTests := []struct {
+			name         string
+			payload      []byte
+			event        stripe.Event
+			verifyErr    error
+			expectUpdate bool
+			updateStatus models.PaymentStatus
+			updateErr    error
+			expectedCode string
+			errorContains string
+		}{
+			{
+				name:         "VerifyWebhookSignature Fails",
+				payload:      payload,
+				event:        stripe.Event{},
+				verifyErr:    verifyErr,
+				expectedCode: appErrors.ErrCodeThirdPartyError,
+			},
+			{
+				name:    "Missing Payment Intent ID (Succeeded)",
+				payload: []byte(`{"id": "evt_bad", "type": "payment_intent.succeeded"}`),
+				event: stripe.Event{
+					ID:   "evt_bad",
+					Type: "payment_intent.succeeded",
+					Data: &stripe.EventData{Object: map[string]any{"amount": 1000}},
 				},
+				expectedCode:  appErrors.ErrCodeInternal,
+				errorContains: "Payment intent ID not found",
+			},
+			{
+				name:    "Non-String Payment Intent ID (Succeeded)",
+				payload: []byte(`{"id": "evt_non_string", "type": "payment_intent.succeeded"}`),
+				event: stripe.Event{
+					ID:   "evt_non_string",
+					Type: "payment_intent.succeeded",
+					Data: &stripe.EventData{Object: map[string]any{"id": 12345}},
+				},
+				expectedCode:  appErrors.ErrCodeInternal,
+				errorContains: "Payment intent ID is not a string",
+			},
+			{
+				name:    "Empty String Payment Intent ID (Succeeded)",
+				payload: []byte(`{"id": "evt_empty_string", "type": "payment_intent.succeeded"}`),
+				event: stripe.Event{
+					ID:   "evt_empty_string",
+					Type: "payment_intent.succeeded",
+					Data: &stripe.EventData{Object: map[string]any{"id": ""}},
+				},
+				expectedCode:  appErrors.ErrCodeThirdPartyError,
+				errorContains: "Missing payment intent ID in webhook",
+			},
+			{
+				name:         "UpdatePaymentStatus Fails (Succeeded)",
+				payload:      payload,
+				event:        eventSucceeded,
+				expectUpdate: true,
+				updateStatus: models.PaymentStatusSucceeded,
+				updateErr:    dbErr,
+				expectedCode: appErrors.ErrCodeDatabaseError,
+			},
+			{
+				name:    "Missing Payment Intent ID (Failed)",
+				payload: []byte(`{"id": "evt_bad_fail", "type": "payment_intent.payment_failed"}`),
+				event: stripe.Event{
+					ID:   "evt_bad_fail",
+					Type: "payment_intent.payment_failed",
+					Data: &stripe.EventData{Object: map[string]any{"reason": "card_declined"}},
+				},
+				expectedCode:  appErrors.ErrCodeInternal,
+				errorContains: "Payment intent ID not found",
+			},
+			{
+				name:         "UpdatePaymentStatus Fails (Failed)",
+				payload:      []byte(`{"id": "evt_456", "type": "payment_intent.payment_failed"}`),
+				event:        eventFailed,
+				expectUpdate: true,
+				updateStatus: models.PaymentStatusFailed,
+				updateErr:    dbErr,
+				expectedCode: appErrors.ErrCodeDatabaseError,
+			},
+			{
+				name:    "Missing Payment Intent ID (Refunded)",
+				payload: []byte(`{"id": "evt_bad_refund", "type": "charge.refunded"}`),
+				event: stripe.Event{
+					ID:   "evt_bad_refund",
+					Type: "charge.refunded",
+					Data: &stripe.EventData{Object: map[string]any{"id": "ch_xyz"}},
+				},
+				expectedCode:  appErrors.ErrCodeThirdPartyError,
+				errorContains: "Missing payment intent ID",
+			},
+			{
+				name:         "UpdatePaymentStatus Fails (Refunded)",
+				payload:      []byte(`{"id": "evt_789", "type": "charge.refunded"}`),
+				event:        eventRefunded,
+				expectUpdate: true,
+				updateStatus: models.PaymentStatusRefunded,
+				updateErr:    dbErr,
+				expectedCode: appErrors.ErrCodeDatabaseError,
 			},
 		}
-		payloadNonStringID := []byte(`{"id": "evt_non_string", "type": "payment_intent.succeeded", "data": {"object": {"id": 12345}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadNonStringID, signature).Return(eventNonStringID, nil).Once()
 
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadNonStringID, signature)
+		for _, tt := range failureTests {
+			t.Run(tt.name, func(t *testing.T) {
+				paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
+				mockStripeClient.On("VerifyWebhookSignature", tt.payload, signature).Return(tt.event, tt.verifyErr).Once()
+				if tt.expectUpdate {
+					mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, tt.updateStatus).Return(tt.updateErr).Once()
+				}
 
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, eventNonStringID.ID, event.ID)
+				event, err := paymentService.ProcessWebhook(ctx, tt.payload, signature)
 
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeInternal, appErr.Code)
-		assert.Contains(t, err.Error(), "Payment intent ID is not a string")
+				assert.Equal(t, tt.event.ID, event.ID)
+				_ = assertAppError(t, err, tt.expectedCode)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+				if tt.verifyErr != nil {
+					assert.ErrorIs(t, err, tt.verifyErr)
+				}
+				if tt.updateErr != nil {
+					assert.ErrorIs(t, err, tt.updateErr)
+				}
 
-		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Failure - Empty String Payment Intent ID (Succeeded)", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		eventEmptyStringID := stripe.Event{
-			ID:   "evt_empty_string",
-			Type: "payment_intent.succeeded",
-			Data: &stripe.EventData{
-				Object: map[string]any{
-					"id": "",
-				},
-			},
+				if !tt.expectUpdate {
+					mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
+				}
+				mockRepo.AssertExpectations(t)
+				mockStripeClient.AssertExpectations(t)
+			})
 		}
-		payloadEmptyStringID := []byte(`{"id": "evt_empty_string", "type": "payment_intent.succeeded", "data": {"object": {"id": ""}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadEmptyStringID, signature).Return(eventEmptyStringID, nil).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadEmptyStringID, signature)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, eventEmptyStringID.ID, event.ID)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeThirdPartyError, appErr.Code)
-		assert.Contains(t, err.Error(), "Missing payment intent ID in webhook")
-
-		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Failure - UpdatePaymentStatus Fails (Succeeded)", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		dbErr := errors.New("db update failed")
-
-		mockStripeClient.On("VerifyWebhookSignature", payload, signature).Return(eventSucceeded, nil).Once()
-		mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, models.PaymentStatusSucceeded).Return(dbErr).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payload, signature)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, eventSucceeded.ID, event.ID)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code)
-		assert.ErrorIs(t, err, dbErr)
-
-		mockRepo.AssertExpectations(t)
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Failure - Missing Payment Intent ID (Failed)", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		eventMissingIDFailed := stripe.Event{
-			ID:   "evt_bad_fail",
-			Type: "payment_intent.payment_failed",
-			Data: &stripe.EventData{Object: map[string]any{"reason": "card_declined"}},
-		}
-		payloadMissingIDFailed := []byte(`{"id": "evt_bad_fail", "type": "payment_intent.payment_failed", "data": {"object": {"reason": "card_declined"}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadMissingIDFailed, signature).Return(eventMissingIDFailed, nil).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadMissingIDFailed, signature)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, eventMissingIDFailed.ID, event.ID)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeInternal, appErr.Code)
-		assert.Contains(t, err.Error(), "Payment intent ID not found")
-
-		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Failure - UpdatePaymentStatus Fails (Failed)", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		dbErr := errors.New("db update failed")
-		payloadFailed := []byte(`{"id": "evt_456", "type": "payment_intent.payment_failed", "data": {"object": {"id": "pi_abc"}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadFailed, signature).Return(eventFailed, nil).Once()
-		mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, models.PaymentStatusFailed).Return(dbErr).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadFailed, signature)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, eventFailed.ID, event.ID)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code)
-		assert.ErrorIs(t, err, dbErr)
-
-		mockRepo.AssertExpectations(t)
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Failure - Missing Payment Intent ID (Refunded)", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		eventMissingIDRefunded := stripe.Event{
-			ID:   "evt_bad_refund",
-			Type: "charge.refunded",
-			Data: &stripe.EventData{Object: map[string]any{"id": "ch_xyz"}},
-		}
-		payloadMissingIDRefunded := []byte(`{"id": "evt_bad_refund", "type": "charge.refunded", "data": {"object": {"id": "ch_xyz"}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadMissingIDRefunded, signature).Return(eventMissingIDRefunded, nil).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadMissingIDRefunded, signature)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, eventMissingIDRefunded.ID, event.ID)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeThirdPartyError, appErr.Code)
-		assert.Contains(t, err.Error(), "Missing payment intent ID")
-
-		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
-		mockStripeClient.AssertExpectations(t)
-	})
-
-	t.Run("Failure - UpdatePaymentStatus Fails (Refunded)", func(t *testing.T) {
-		// Arrange
-		mockRepo := repoMocks.NewMockPaymentRepository(t)
-		mockStripeClient := stripeMocks.NewMockClient(t)
-		paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
-
-		dbErr := errors.New("db update failed")
-		payloadRefunded := []byte(`{"id": "evt_789", "type": "charge.refunded", "data": {"object": {"id": "ch_xyz", "payment_intent": "pi_abc"}}}`)
-		mockStripeClient.On("VerifyWebhookSignature", payloadRefunded, signature).Return(eventRefunded, nil).Once()
-		mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, models.PaymentStatusRefunded).Return(dbErr).Once()
-
-		// Act
-		event, err := paymentService.ProcessWebhook(ctx, payloadRefunded, signature)
-
-		// Assert
-		assert.Error(t, err)
-		assert.Equal(t, eventRefunded.ID, event.ID)
-
-		appErr, ok := appErrors.IsAppError(err)
-		assert.True(t, ok)
-		assert.Equal(t, appErrors.ErrCodeDatabaseError, appErr.Code)
-		assert.ErrorIs(t, err, dbErr)
-
-		mockRepo.AssertExpectations(t)
-		mockStripeClient.AssertExpectations(t)
 	})
 }
