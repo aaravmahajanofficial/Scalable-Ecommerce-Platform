@@ -166,41 +166,45 @@ func (r *orderRepository) scanOrderRows(rows *sql.Rows, customerID uuid.UUID) ([
 	return orders, nil
 }
 
-func (r *orderRepository) populateOrderItems(ctx context.Context, orders []models.Order) error {
+func (r *orderRepository) fetchOrderItems(ctx context.Context, orderID uuid.UUID) ([]models.OrderItem, error) {
 	query := `
 		SELECT id, product_id, quantity, unit_price, created_at
 		FROM order_items
 		WHERE order_id = $1
 	`
 
+	itemsRows, err := r.DB.QueryContext(ctx, query, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the orders: %w", err)
+	}
+	defer closeRows(itemsRows)
+
+	var items []models.OrderItem
+
+	for itemsRows.Next() {
+		var item models.OrderItem
+
+		if err := itemsRows.Scan(&item.ID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan order item: %w", err)
+		}
+
+		item.OrderID = orderID
+		items = append(items, item)
+	}
+
+	if err := itemsRows.Err(); err != nil {
+		return nil, fmt.Errorf("error during order items rows iteration: %w", err)
+	}
+
+	return items, nil
+}
+
+func (r *orderRepository) populateOrderItems(ctx context.Context, orders []models.Order) error {
 	for i := range orders {
-		itemsRows, err := r.DB.QueryContext(ctx, query, orders[i].ID)
+		items, err := r.fetchOrderItems(ctx, orders[i].ID)
 		if err != nil {
-			return fmt.Errorf("failed to get the orders: %w", err)
+			return err
 		}
-
-		var items []models.OrderItem
-
-		for itemsRows.Next() {
-			var item models.OrderItem
-
-			scanErr := itemsRows.Scan(&item.ID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.CreatedAt)
-			if scanErr != nil {
-				closeErr := itemsRows.Close()
-				if closeErr != nil {
-					return fmt.Errorf("scan error: %w, and failed to close itemsRows: %w", scanErr, closeErr)
-				}
-				return fmt.Errorf("failed to scan order item: %w", scanErr)
-			}
-
-			item.OrderID = orders[i].ID
-			items = append(items, item)
-		}
-
-		if err := itemsRows.Close(); err != nil {
-			return fmt.Errorf("failed to close itemsRows: %w", err)
-		}
-
 		orders[i].Items = items
 	}
 
