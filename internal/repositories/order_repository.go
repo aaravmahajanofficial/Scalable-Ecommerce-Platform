@@ -65,6 +65,42 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 	return nil
 }
 
+func (r *orderRepository) getOrderItems(ctx context.Context, orderID uuid.UUID) ([]models.OrderItem, error) {
+	query := `
+		SELECT id, product_id, quantity, unit_price, created_at
+		FROM order_items
+		WHERE order_id = $1
+	`
+
+	rows, err := r.DB.QueryContext(ctx, query, orderID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("querying database: %w", err)
+		}
+
+		return nil, fmt.Errorf("failed to get the order items: %w", err)
+	}
+
+	defer closeRows(rows)
+
+	var items []models.OrderItem
+
+	for rows.Next() {
+		var item models.OrderItem
+
+		err := rows.Scan(&item.ID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan order item: %w", err)
+		}
+
+		item.OrderID = orderID
+
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
 // Get the order items.
 func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
 	dbCtx, cancel := apputils.WithDBTimeout(ctx)
@@ -95,37 +131,9 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to unmarshal shipping address: %w", err)
 	}
 
-	// Get the order items
-	query = `
-		SELECT id, product_id, quantity, unit_price, created_at
-		FROM order_items
-		WHERE order_id = $1
-	`
-
-	rows, err := r.DB.QueryContext(dbCtx, query, id)
+	items, err := r.getOrderItems(dbCtx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("querying database: %w", err)
-		}
-
-		return nil, fmt.Errorf("failed to get the order items: %w", err)
-	}
-
-	defer closeRows(rows)
-
-	var items []models.OrderItem
-
-	for rows.Next() {
-		var item models.OrderItem
-
-		err := rows.Scan(&item.ID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.CreatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan order item: %w", err)
-		}
-
-		item.OrderID = order.ID
-
-		items = append(items, item)
+		return nil, err
 	}
 
 	order.Items = items
