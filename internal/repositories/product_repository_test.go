@@ -11,6 +11,7 @@ import (
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	repository "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -190,6 +191,84 @@ func TestProductRepository(t *testing.T) {
 			require.Error(t, err, "GetProductByID should return an error on scan failure")
 			assert.Contains(t, err.Error(), "Scan", "Error message should indicate a scan issue")
 			assert.Nil(t, product, "Returned product should be nil on error")
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	})
+
+	t.Run("GetProductsByIDs", func(t *testing.T) {
+		now := time.Now()
+		expectedSQL := regexp.QuoteMeta(`
+        SELECT p.id, p.category_id, p.name, p.description, p.price,
+               p.stock_quantity, p.sku, p.status, p.created_at, p.updated_at,
+               c.id, c.name, c.description
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.id = ANY($1)`)
+
+		productCols := []string{
+			"p.id", "p.category_id", "p.name", "p.description", "p.price",
+			"p.stock_quantity", "p.sku", "p.status", "p.created_at", "p.updated_at",
+			"c.id", "c.name", "c.description",
+		}
+
+		t.Run("EmptyIDs", func(t *testing.T) {
+			products, err := repo.GetProductsByIDs(ctx, []uuid.UUID{})
+			require.NoError(t, err)
+			assert.Empty(t, products)
+		})
+
+		t.Run("Success", func(t *testing.T) {
+			id1, id2 := uuid.New(), uuid.New()
+			catID := uuid.New()
+			ids := []uuid.UUID{id1, id2}
+
+			expectedProducts := []*models.Product{
+				{
+					ID: id1, CategoryID: catID, Name: "P1", Price: 10, StockQuantity: 5, SKU: "S1", Status: "active", CreatedAt: now, UpdatedAt: now,
+					Category: &models.Category{ID: catID, Name: "C1"},
+				},
+				{
+					ID: id2, CategoryID: catID, Name: "P2", Price: 20, StockQuantity: 10, SKU: "S2", Status: "active", CreatedAt: now, UpdatedAt: now,
+					Category: &models.Category{ID: catID, Name: "C1"},
+				},
+			}
+
+			rows := sqlmock.NewRows(productCols).
+				AddRow(expectedProducts[0].ID, expectedProducts[0].CategoryID, expectedProducts[0].Name, expectedProducts[0].Description, expectedProducts[0].Price, expectedProducts[0].StockQuantity, expectedProducts[0].SKU, expectedProducts[0].Status, expectedProducts[0].CreatedAt, expectedProducts[0].UpdatedAt, expectedProducts[0].Category.ID, expectedProducts[0].Category.Name, expectedProducts[0].Category.Description).
+				AddRow(expectedProducts[1].ID, expectedProducts[1].CategoryID, expectedProducts[1].Name, expectedProducts[1].Description, expectedProducts[1].Price, expectedProducts[1].StockQuantity, expectedProducts[1].SKU, expectedProducts[1].Status, expectedProducts[1].CreatedAt, expectedProducts[1].UpdatedAt, expectedProducts[1].Category.ID, expectedProducts[1].Category.Name, expectedProducts[1].Category.Description)
+
+			mock.ExpectQuery(expectedSQL).WithArgs(pq.Array(ids)).WillReturnRows(rows)
+
+			products, err := repo.GetProductsByIDs(ctx, ids)
+			require.NoError(t, err)
+			assert.Equal(t, expectedProducts, products)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run("QueryError", func(t *testing.T) {
+			ids := []uuid.UUID{uuid.New()}
+			dbErr := errors.New("db error")
+
+			mock.ExpectQuery(expectedSQL).WithArgs(pq.Array(ids)).WillReturnError(dbErr)
+
+			products, err := repo.GetProductsByIDs(ctx, ids)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, dbErr)
+			assert.Nil(t, products)
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+
+		t.Run("ScanError", func(t *testing.T) {
+			ids := []uuid.UUID{uuid.New()}
+			scanErr := errors.New("scan error")
+
+			rows := sqlmock.NewRows(productCols).AddRow("invalid", "invalid", "invalid", "invalid", "invalid", "invalid", "invalid", "invalid", "invalid", "invalid", "invalid", "invalid", "invalid").RowError(0, scanErr)
+			mock.ExpectQuery(expectedSQL).WithArgs(pq.Array(ids)).WillReturnRows(rows)
+
+			products, err := repo.GetProductsByIDs(ctx, ids)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, scanErr)
+			assert.Nil(t, products)
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	})
