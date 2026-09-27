@@ -120,7 +120,7 @@ func setupRouter(cfg *config.Config, repos *repository.Repositories, jwtKey []by
 	healthEndpoints := &health.Endpoint{
 		DB:           repos.DB,
 		RedisClient:  repos.RedisClient,
-		StripeClient: &stripeClient,
+		StripeClient: stripeClient,
 	}
 
 	readinessHandler, err := health.NewReadinessHandler(cfg, healthEndpoints)
