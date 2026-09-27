@@ -26,6 +26,27 @@ type Endpoint struct {
 	StripeClient *stripeClient.Client
 }
 
+func checkStripeHealth(ctx context.Context, client stripeClient.Client) error {
+	reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+
+	params := &stripe.BalanceParams{
+		Params: stripe.Params{
+			Context: reqCtx,
+		},
+	}
+	_, err := balance.Get(params)
+	if err != nil {
+		if ctxErr := reqCtx.Err(); errors.Is(ctxErr, context.DeadlineExceeded) {
+			return fmt.Errorf("stripe API call timed out: %w", ctxErr)
+		}
+
+		return fmt.Errorf("failed to connect to stripe: %w", err)
+	}
+
+	return nil
+}
+
 func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Handler, error) {
 	h, err := health.New(
 
@@ -62,24 +83,7 @@ func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Han
 						return errors.New("stripe client is not initialized")
 					}
 
-					reqCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-					defer cancel()
-
-					params := &stripe.BalanceParams{
-						Params: stripe.Params{
-							Context: reqCtx,
-						},
-					}
-					_, err := balance.Get(params)
-					if err != nil {
-						if ctxErr := reqCtx.Err(); errors.Is(ctxErr, context.DeadlineExceeded) {
-							return fmt.Errorf("stripe API call timed out: %w", ctxErr)
-						}
-
-						return fmt.Errorf("failed to connect to stripe: %w", err)
-					}
-
-					return nil
+					return checkStripeHealth(ctx, *healthEndpoint.StripeClient)
 				},
 			},
 		),

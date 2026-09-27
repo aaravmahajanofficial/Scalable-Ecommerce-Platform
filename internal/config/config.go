@@ -113,7 +113,8 @@ func MustLoad() *Config {
 		}
 	}
 
-	if _, err := os.Stat(filepath.Clean(configPath)); os.IsNotExist(err) {
+	cleanPath := filepath.Clean(configPath)
+	if _, err := os.Stat(cleanPath); os.IsNotExist(err) {
 		log.Fatalf("config file does not exist")
 	} else if err != nil {
 		log.Fatalf("error accessing config file")
@@ -121,7 +122,7 @@ func MustLoad() *Config {
 
 	var cfg Config
 
-	err := cleanenv.ReadConfig(configPath, &cfg)
+	err := cleanenv.ReadConfig(cleanPath, &cfg)
 	if err != nil {
 		log.Fatalf("cannot read config file: %v", err)
 	}
@@ -140,13 +141,14 @@ func LoadConfigFromPath(configPath string) (*Config, error) {
 		return nil, errors.New("config path is empty")
 	}
 
-	if _, err := os.Stat(filepath.Clean(configPath)); os.IsNotExist(err) {
+	cleanPath := filepath.Clean(configPath)
+	if _, err := os.Stat(cleanPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("config file does not exist: %s", configPath)
 	}
 
 	var cfg Config
 
-	err := cleanenv.ReadConfig(configPath, &cfg)
+	err := cleanenv.ReadConfig(cleanPath, &cfg)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read config file: %s", err.Error())
 	}
