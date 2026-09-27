@@ -36,30 +36,6 @@ func (s *notificationService) SendEmail(ctx context.Context, req *models.EmailNo
 		return nil, apperrors.NotFoundError("User not found").WithError(err)
 	}
 
-	notification, err := buildNotification(req)
-	if err != nil {
-		return nil, err
-	}
-
-	// Save to the database
-	if err := s.repo.CreateNotification(ctx, notification); err != nil {
-		return nil, apperrors.DatabaseError("Failed to create notification").WithError(err)
-	}
-
-	if err := s.deliverAndSyncStatus(ctx, notification, req); err != nil {
-		return nil, err
-	}
-
-	return &models.NotificationResponse{
-		ID:        notification.ID,
-		Type:      notification.Type,
-		Status:    notification.Status,
-		Recipient: notification.Recipient,
-		CreatedAt: notification.CreatedAt,
-	}, nil
-}
-
-func buildNotification(req *models.EmailNotificationRequest) (*models.Notification, error) {
 	var metadataJSON json.RawMessage
 
 	if req.Metadata != nil {
@@ -71,7 +47,7 @@ func buildNotification(req *models.EmailNotificationRequest) (*models.Notificati
 		metadataJSON = metadataBytes
 	}
 
-	return &models.Notification{
+	notification := &models.Notification{
 		ID:        uuid.New(),
 		Type:      models.NotificationTypeEmail,
 		Recipient: req.To,
@@ -81,30 +57,39 @@ func buildNotification(req *models.EmailNotificationRequest) (*models.Notificati
 		Metadata:  metadataJSON,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	}, nil
-}
+	}
 
-func (s *notificationService) deliverAndSyncStatus(ctx context.Context, notification *models.Notification, req *models.EmailNotificationRequest) error {
-	err := s.emailService.Send(ctx, req)
+	// Save to the database
+	if err := s.repo.CreateNotification(ctx, notification); err != nil {
+		return nil, apperrors.DatabaseError("Failed to create notification").WithError(err)
+	}
+
+	err = s.emailService.Send(ctx, req)
 	if err != nil {
 		notification.Status = models.StatusFailed
 		notification.ErrorMessage = err.Error()
 
 		if updateErr := s.repo.UpdateNotificationStatus(ctx, notification.ID, models.StatusFailed, notification.ErrorMessage); updateErr != nil {
-			return fmt.Errorf("failed to update notification status after send failure: %w", updateErr)
+			return nil, fmt.Errorf("failed to update notification status after send failure: %w", updateErr)
 		}
 
-		return apperrors.ThirdPartyError("Failed to send notification").WithError(err)
+		return nil, apperrors.ThirdPartyError("Failed to send notification").WithError(err)
 	}
 
 	// Update the notification status if sent successfully
 	notification.Status = models.StatusSent
 
 	if err := s.repo.UpdateNotificationStatus(ctx, notification.ID, models.StatusSent, ""); err != nil {
-		return apperrors.DatabaseError("Failed to update notification status").WithError(err)
+		return nil, apperrors.DatabaseError("Failed to update notification status").WithError(err)
 	}
 
-	return nil
+	return &models.NotificationResponse{
+		ID:        notification.ID,
+		Type:      notification.Type,
+		Status:    notification.Status,
+		Recipient: notification.Recipient,
+		CreatedAt: notification.CreatedAt,
+	}, nil
 }
 
 // GetNotification implements NotificationService.
