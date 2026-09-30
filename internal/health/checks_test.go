@@ -113,7 +113,7 @@ func TestNewReadinessHandler_StripeTimeout(t *testing.T) {
 	endpoint := &health.Endpoint{
 		DB:           db,
 		RedisClient:  redisClient,
-		StripeClient: &sc,
+		StripeClient: sc,
 	}
 
 	originalBackend := stripe_go.GetBackend(stripe_go.APIBackend)
@@ -160,7 +160,7 @@ func TestNewReadinessHandler_StripeError(t *testing.T) {
 	endpoint := &health.Endpoint{
 		DB:           db,
 		RedisClient:  redisClient,
-		StripeClient: &sc,
+		StripeClient: sc,
 	}
 
 	originalBackend := stripe_go.GetBackend(stripe_go.APIBackend)
@@ -207,7 +207,7 @@ func TestNewReadinessHandler_Success(t *testing.T) {
 	endpoint := &health.Endpoint{
 		DB:           db,
 		RedisClient:  redisClient,
-		StripeClient: &sc,
+		StripeClient: sc,
 	}
 
 	originalBackend := stripe_go.GetBackend(stripe_go.APIBackend)
