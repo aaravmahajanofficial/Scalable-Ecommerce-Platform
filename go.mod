@@ -13,7 +13,7 @@ require (
 	github.com/stripe/stripe-go/v86 v86.4.2
 	github.com/stripe/stripe-go/v87 v87.0.0
 	github.com/swaggo/http-swagger v1.3.4
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.71.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.47.0
 	golang.org/x/crypto v0.57.0
 )
