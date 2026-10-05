@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/stripe/stripe-go/v86"
-	"github.com/stripe/stripe-go/v86/paymentintent"
-	"github.com/stripe/stripe-go/v86/paymentmethod"
-	"github.com/stripe/stripe-go/v86/refund"
-	"github.com/stripe/stripe-go/v86/webhook"
+	"github.com/stripe/stripe-go/v87"
+	"github.com/stripe/stripe-go/v87/paymentintent"
+	"github.com/stripe/stripe-go/v87/paymentmethod"
+	"github.com/stripe/stripe-go/v87/refund"
+	"github.com/stripe/stripe-go/v87/webhook"
 )
 
 type Event = stripe.Event
