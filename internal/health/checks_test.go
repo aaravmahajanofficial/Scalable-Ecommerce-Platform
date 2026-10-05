@@ -15,7 +15,7 @@ import (
 	"github.com/go-redis/redismock/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	stripe_go "github.com/stripe/stripe-go/v86"
+	stripe_go "github.com/stripe/stripe-go/v87"
 )
 
 type mockStripeBackend struct {
