@@ -94,6 +94,31 @@ func (r *notificationRepository) UpdateNotificationStatus(ctx context.Context, i
 	return nil
 }
 
+func (r *notificationRepository) scanNotificationRows(rows *sql.Rows) ([]*models.Notification, error) {
+	notifications := []*models.Notification{}
+
+	for rows.Next() {
+		var notification models.Notification
+
+		var metadata []byte
+
+		err := rows.Scan(&notification.ID, &notification.Type, &notification.Recipient, &notification.Subject, &notification.Content, &notification.Status, &metadata, &notification.ErrorMessage, &notification.CreatedAt, &notification.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan notifications: %w", err)
+		}
+
+		notification.Metadata = json.RawMessage(metadata)
+
+		notifications = append(notifications, &notification)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over the rows: %w", err)
+	}
+
+	return notifications, nil
+}
+
 func (r *notificationRepository) ListNotifications(ctx context.Context, page, size int) ([]*models.Notification, int, error) {
 	dbCtx, cancel := apputils.WithDBTimeout(ctx)
 	defer cancel()
@@ -123,25 +148,9 @@ func (r *notificationRepository) ListNotifications(ctx context.Context, page, si
 
 	defer closeRows(rows)
 
-	notifications := []*models.Notification{}
-
-	for rows.Next() {
-		var notification models.Notification
-
-		var metadata []byte
-
-		err := rows.Scan(&notification.ID, &notification.Type, &notification.Recipient, &notification.Subject, &notification.Content, &notification.Status, &metadata, &notification.ErrorMessage, &notification.CreatedAt, &notification.UpdatedAt)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to scan notifications: %w", err)
-		}
-
-		notification.Metadata = json.RawMessage(metadata)
-
-		notifications = append(notifications, &notification)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("error iterating over the rows: %w", err)
+	notifications, err := r.scanNotificationRows(rows)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	return notifications, total, nil
