@@ -31,8 +31,6 @@ type stripeClient struct {
 	webhookSecret string
 }
 
-// type paypalClient struct {}
-
 func NewStripeClient(apiKey, webhookSecret string) Client {
 	stripe.Key = apiKey
 
