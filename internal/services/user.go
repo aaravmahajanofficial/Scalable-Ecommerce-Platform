@@ -89,9 +89,8 @@ func (s *userService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 		}, nil
 	}
 
-	// Retrieve the user from the DB and compare the passwords
-	user, err := s.repo.GetUserByEmail(ctx, req.Email)
-	if err != nil || bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)) != nil {
+	user, err := s.authenticateUser(ctx, req.Email, req.Password)
+	if err != nil {
 		return &models.LoginResponse{
 			Success:        false,
 			Message:        "Invalid email or password",
@@ -99,6 +98,32 @@ func (s *userService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 		}, nil
 	}
 
+	tokenString, expiresIn, err := s.generateAuthToken(user)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.LoginResponse{
+		Success:   true,
+		Token:     tokenString,
+		ExpiresIn: expiresIn,
+	}, nil
+}
+
+func (s *userService) authenticateUser(ctx context.Context, email, password string) (*models.User, error) {
+	user, err := s.repo.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (s *userService) generateAuthToken(user *models.User) (string, int, error) {
 	claims := &models.Claims{
 		UserID: user.ID,
 		Email:  user.Email,
@@ -108,19 +133,15 @@ func (s *userService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 		},
 	}
 
-	// Generate Token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	tokenString, err := token.SignedString(s.jwtKey)
 	if err != nil {
-		return nil, appError.InternalError("Failed to generate authentication token").WithError(err)
+		return "", 0, appError.InternalError("Failed to generate authentication token").WithError(err)
 	}
 
-	return &models.LoginResponse{
-		Success:   true,
-		Token:     tokenString,
-		ExpiresIn: int(time.Until(claims.ExpiresAt.Time).Seconds()),
-	}, nil
+	expiresIn := int(time.Until(claims.ExpiresAt.Time).Seconds())
+	return tokenString, expiresIn, nil
 }
 
 func (s *userService) GetUserByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
