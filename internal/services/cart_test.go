@@ -16,6 +16,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNewCartService(t *testing.T) {
+	mockRepo := repoMocks.NewMockCartRepository(t)
+	cartService := service.NewCartService(mockRepo)
+
+	assert.NotNil(t, cartService)
+}
+
 func TestCreateCart(t *testing.T) {
 	mockRepo := repoMocks.NewMockCartRepository(t)
 	cartService := service.NewCartService(mockRepo)
