@@ -202,12 +202,58 @@ func runServer(server *http.Server, shutdownTimeout time.Duration) {
 	}
 }
 
-func main() {
-	// Logger setup
+func initLogger() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
+}
 
-	// Load config
+func initStorage(cfg *config.Config) (*repository.Repositories, func(), error) {
+	redisClient, err := repository.NewRedisClient(cfg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialize Redis client: %w", err)
+	}
+
+	redisCache := cache.NewRedisCache(redisClient, &cfg.Cache)
+	slog.Info("Cache Initialized", slog.String("type", "redis"), slog.String("defaultTTL", cfg.Cache.DefaultTTL.String()))
+
+	rateLimiter := repository.NewRateLimitRepo(redisClient, cfg)
+	slog.Info("Rate Limiter Initialized", slog.String("type", "redis"))
+
+	repos, err := repository.New(cfg, redisClient, redisCache, rateLimiter)
+	if err != nil {
+		if closeErr := redisClient.Close(); closeErr != nil {
+			slog.Error("⚠️ Error closing Redis connection during initialization error", slog.String("error", closeErr.Error()))
+		}
+		return nil, nil, fmt.Errorf("error initializing repositories: %w", err)
+	}
+
+	cleanup := func() {
+		slog.Info("Closing repository connections (DB, Redis)...")
+		if err := repos.Close(); err != nil {
+			slog.Error("⚠️ Error closing repository connections", slog.String("error", err.Error()))
+		} else {
+			slog.Info("✅ Repository connections closed")
+		}
+	}
+
+	return repos, cleanup, nil
+}
+
+func startServer(cfg *config.Config, repos *repository.Repositories) {
+	jwtKey := []byte(cfg.Security.JWTKey)
+	stripeClient := stripe.NewStripeClient(cfg.Stripe.APIKey, cfg.Stripe.WebhookSecret)
+	sendGridClient := sendgrid.NewEmailService(cfg.SendGrid.APIKey, cfg.SendGrid.FromEmail, cfg.SendGrid.FromName)
+	swaggerHost := getSwaggerHost(cfg)
+
+	router := setupRouter(cfg, repos, jwtKey, stripeClient, sendGridClient, swaggerHost)
+	server := newServer(cfg, router)
+
+	runServer(server, cfg.HTTPServer.GracefulShutdownTimeout)
+}
+
+func main() {
+	initLogger()
+
 	cfg := config.MustLoad()
 
 	tracerShutdown, err := initTracer(cfg)
@@ -225,55 +271,14 @@ func main() {
 		}
 	}()
 
-	swaggerHost := getSwaggerHost(cfg)
-
-	// --- Redis Client Initialization ---
-	redisClient, err := repository.NewRedisClient(cfg)
+	repos, cleanupStorage, err := initStorage(cfg)
 	if err != nil {
-		slog.Error("❌ Failed to initialize Redis client", "error", err.Error())
+		slog.Error("❌ Error initializing storage", "error", err.Error())
 		panic(err)
 	}
-	defer func() {
-		slog.Info("Closing Redis connection...")
-		if err := redisClient.Close(); err != nil {
-			slog.Error("⚠️ Error closing Redis connection", slog.String("error", err.Error()))
-		} else {
-			slog.Info("✅ Redis connection closed")
-		}
-	}()
+	defer cleanupStorage()
 
-	// --- Cache and Rate Limiter Initialization ---
-	redisCache := cache.NewRedisCache(redisClient, &cfg.Cache)
-	slog.Info("Cache Initialized", slog.String("type", "redis"), slog.String("defaultTTL", cfg.Cache.DefaultTTL.String()))
-
-	rateLimiter := repository.NewRateLimitRepo(redisClient, cfg)
-	slog.Info("Rate Limiter Initialized", slog.String("type", "redis"))
-
-	// --- Database and Repositories Initialization ---
-	repos, err := repository.New(cfg, redisClient, redisCache, rateLimiter)
-	if err != nil {
-		slog.Error("❌ Error initializing repositories", "error", err.Error())
-		panic(err)
-	}
-	defer func() {
-		slog.Info("Closing repository connections (DB, Redis)...")
-		if err := repos.Close(); err != nil {
-			slog.Error("⚠️ Error closing repository connections", slog.String("error", err.Error()))
-		} else {
-			slog.Info("✅ Repository connections closed")
-		}
-	}()
-
-	jwtKey := []byte(cfg.Security.JWTKey)
-	stripeClient := stripe.NewStripeClient(cfg.Stripe.APIKey, cfg.Stripe.WebhookSecret)
-	sendGridClient := sendgrid.NewEmailService(cfg.SendGrid.APIKey, cfg.SendGrid.FromEmail, cfg.SendGrid.FromName)
-
-	router := setupRouter(cfg, repos, jwtKey, stripeClient, sendGridClient, swaggerHost)
-
-	// Setup http server
-	server := newServer(cfg, router)
-
-	runServer(server, cfg.HTTPServer.GracefulShutdownTimeout)
+	startServer(cfg, repos)
 }
 
 func getSwaggerHost(cfg *config.Config) string {
