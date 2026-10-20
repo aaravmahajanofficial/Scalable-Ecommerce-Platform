@@ -113,8 +113,7 @@ func MustLoad() *Config {
 		}
 	}
 
-	// #nosec G703
-	if _, err := os.Stat(filepath.Clean(configPath)); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Clean(configPath)); os.IsNotExist(err) { // #nosec G703
 		log.Fatalf("config file does not exist")
 	} else if err != nil {
 		log.Fatalf("error accessing config file")
@@ -141,8 +140,7 @@ func LoadConfigFromPath(configPath string) (*Config, error) {
 		return nil, errors.New("config path is empty")
 	}
 
-	//nolint:gosec // configPath is controlled via environment variable or CLI flag
-	if _, err := os.Stat(filepath.Clean(configPath)); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Clean(configPath)); os.IsNotExist(err) { // #nosec G703
 		return nil, fmt.Errorf("config file does not exist: %s", configPath)
 	}
 
