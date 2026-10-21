@@ -1,0 +1,25 @@
+name: Auto Comment Merge Conflicts
+
+on:
+  push:
+    branches:
+      - main
+      
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  auto-comment-merge-conflicts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto Comment Merge Conflict
+        uses: CodyTseng/auto-comment-merge-conflicts@v1.6.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          wait-ms: 3000
+          max-retries: 5
+          label-name: merge-conflict
+          ignore-authors: dependabot[bot],renovate[bot]
