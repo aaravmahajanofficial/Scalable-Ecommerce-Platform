@@ -134,26 +134,12 @@ func setupRouter(cfg *config.Config, repos *repository.Repositories, jwtKey []by
 
 	// Setup router for handling api routes only
 	apiMux := http.NewServeMux()
-	apiMux.HandleFunc("POST /api/v1/users/register", userHandler.Register())
-	apiMux.HandleFunc("POST /api/v1/users/login", userHandler.Login())
-	apiMux.HandleFunc("GET /api/v1/users/profile", authMiddleware.Authenticate(userHandler.Profile()))
-	apiMux.HandleFunc("POST /api/v1/products", authMiddleware.Authenticate(productHandler.CreateProduct()))
-	apiMux.HandleFunc("GET /api/v1/products/{id}", authMiddleware.Authenticate(productHandler.GetProduct()))
-	apiMux.HandleFunc("PUT /api/v1/products/{id}", authMiddleware.Authenticate(productHandler.UpdateProduct()))
-	apiMux.HandleFunc("GET /api/v1/products", authMiddleware.Authenticate(productHandler.ListProducts()))
-	apiMux.HandleFunc("GET /api/v1/carts", authMiddleware.Authenticate(cartHandler.GetCart()))
-	apiMux.HandleFunc("POST /api/v1/carts/items", authMiddleware.Authenticate(cartHandler.AddItem()))
-	apiMux.HandleFunc("PUT /api/v1/carts/items", authMiddleware.Authenticate(cartHandler.UpdateQuantity()))
-	apiMux.HandleFunc("POST /api/v1/orders", authMiddleware.Authenticate(orderHandler.CreateOrder()))
-	apiMux.HandleFunc("GET /api/v1/orders/{id}", authMiddleware.Authenticate(orderHandler.GetOrder()))
-	apiMux.HandleFunc("GET /api/v1/orders", authMiddleware.Authenticate(orderHandler.ListOrders()))
-	apiMux.HandleFunc("PATCH /api/v1/orders/{id}/status", authMiddleware.Authenticate(orderHandler.UpdateOrderStatus()))
-	apiMux.HandleFunc("POST /api/v1/payments", authMiddleware.Authenticate(paymentHandler.CreatePayment()))
-	apiMux.HandleFunc("GET /api/v1/payments/{id}", authMiddleware.Authenticate(paymentHandler.GetPayment()))
-	apiMux.HandleFunc("GET /api/v1/payments", authMiddleware.Authenticate(paymentHandler.ListPayments()))
-	apiMux.HandleFunc("POST /api/v1/payments/webhook", authMiddleware.Authenticate(paymentHandler.HandleStripeWebhook()))
-	apiMux.HandleFunc("POST /api/v1/notifications/email", authMiddleware.Authenticate(notificationHandler.SendEmail()))
-	apiMux.HandleFunc("GET /api/v1/notifications", authMiddleware.Authenticate(notificationHandler.ListNotifications()))
+	registerUserRoutes(apiMux, userHandler, authMiddleware)
+	registerProductRoutes(apiMux, productHandler, authMiddleware)
+	registerCartRoutes(apiMux, cartHandler, authMiddleware)
+	registerOrderRoutes(apiMux, orderHandler, authMiddleware)
+	registerPaymentRoutes(apiMux, paymentHandler, authMiddleware)
+	registerNotificationRoutes(apiMux, notificationHandler, authMiddleware)
 
 	// Main router
 	mainMux := http.NewServeMux()
@@ -172,6 +158,44 @@ func setupRouter(cfg *config.Config, repos *repository.Repositories, jwtKey []by
 
 	mainMux.Handle("/api/v1/", apiHandler)
 	return mainMux
+}
+
+func registerUserRoutes(mux *http.ServeMux, userHandler *handlers.UserHandler, authMiddleware *middleware.AuthMiddleware) {
+	mux.HandleFunc("POST /api/v1/users/register", userHandler.Register())
+	mux.HandleFunc("POST /api/v1/users/login", userHandler.Login())
+	mux.HandleFunc("GET /api/v1/users/profile", authMiddleware.Authenticate(userHandler.Profile()))
+}
+
+func registerProductRoutes(mux *http.ServeMux, productHandler *handlers.ProductHandler, authMiddleware *middleware.AuthMiddleware) {
+	mux.HandleFunc("POST /api/v1/products", authMiddleware.Authenticate(productHandler.CreateProduct()))
+	mux.HandleFunc("GET /api/v1/products/{id}", authMiddleware.Authenticate(productHandler.GetProduct()))
+	mux.HandleFunc("PUT /api/v1/products/{id}", authMiddleware.Authenticate(productHandler.UpdateProduct()))
+	mux.HandleFunc("GET /api/v1/products", authMiddleware.Authenticate(productHandler.ListProducts()))
+}
+
+func registerCartRoutes(mux *http.ServeMux, cartHandler *handlers.CartHandler, authMiddleware *middleware.AuthMiddleware) {
+	mux.HandleFunc("GET /api/v1/carts", authMiddleware.Authenticate(cartHandler.GetCart()))
+	mux.HandleFunc("POST /api/v1/carts/items", authMiddleware.Authenticate(cartHandler.AddItem()))
+	mux.HandleFunc("PUT /api/v1/carts/items", authMiddleware.Authenticate(cartHandler.UpdateQuantity()))
+}
+
+func registerOrderRoutes(mux *http.ServeMux, orderHandler *handlers.OrderHandler, authMiddleware *middleware.AuthMiddleware) {
+	mux.HandleFunc("POST /api/v1/orders", authMiddleware.Authenticate(orderHandler.CreateOrder()))
+	mux.HandleFunc("GET /api/v1/orders/{id}", authMiddleware.Authenticate(orderHandler.GetOrder()))
+	mux.HandleFunc("GET /api/v1/orders", authMiddleware.Authenticate(orderHandler.ListOrders()))
+	mux.HandleFunc("PATCH /api/v1/orders/{id}/status", authMiddleware.Authenticate(orderHandler.UpdateOrderStatus()))
+}
+
+func registerPaymentRoutes(mux *http.ServeMux, paymentHandler *handlers.PaymentHandler, authMiddleware *middleware.AuthMiddleware) {
+	mux.HandleFunc("POST /api/v1/payments", authMiddleware.Authenticate(paymentHandler.CreatePayment()))
+	mux.HandleFunc("GET /api/v1/payments/{id}", authMiddleware.Authenticate(paymentHandler.GetPayment()))
+	mux.HandleFunc("GET /api/v1/payments", authMiddleware.Authenticate(paymentHandler.ListPayments()))
+	mux.HandleFunc("POST /api/v1/payments/webhook", authMiddleware.Authenticate(paymentHandler.HandleStripeWebhook()))
+}
+
+func registerNotificationRoutes(mux *http.ServeMux, notificationHandler *handlers.NotificationHandler, authMiddleware *middleware.AuthMiddleware) {
+	mux.HandleFunc("POST /api/v1/notifications/email", authMiddleware.Authenticate(notificationHandler.SendEmail()))
+	mux.HandleFunc("GET /api/v1/notifications", authMiddleware.Authenticate(notificationHandler.ListNotifications()))
 }
 
 func runServer(server *http.Server, shutdownTimeout time.Duration) {
