@@ -15,6 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNewOrderService(t *testing.T) {
+	mockOrderRepo := mocks.NewMockOrderRepository(t)
+	mockCartRepo := mocks.NewMockCartRepository(t)
+	mockProductRepo := mocks.NewMockProductRepository(t)
+
+	orderService := service.NewOrderService(mockOrderRepo, mockCartRepo, mockProductRepo)
+
+	assert.NotNil(t, orderService)
+	assert.Implements(t, (*service.OrderService)(nil), orderService)
+}
+
 func setupOrderServiceTest(t *testing.T) (service.OrderService, *mocks.MockOrderRepository, *mocks.MockCartRepository, *mocks.MockProductRepository) {
 	mockOrderRepo := mocks.NewMockOrderRepository(t)
 	mockCartRepo := mocks.NewMockCartRepository(t)
@@ -110,7 +121,7 @@ func TestCreateOrder_CartNotFound(t *testing.T) {
 
 	// Mock Call Cart Repository
 	mockErr := errors.New("mock cart repo error")
-	mockCartRepo.On("GetCartByCustomerID", ctx, customerID).Return(nil, mockErr)
+	mockCartRepo.On("GetCartByCustomerID", ctx, customerID).Return(nil, mockErr).Once()
 
 	req := &models.CreateOrderRequest{CustomerID: customerID}
 
