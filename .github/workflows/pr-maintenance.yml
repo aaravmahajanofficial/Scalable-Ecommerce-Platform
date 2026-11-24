@@ -21,46 +21,53 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Update one behind-main PR and ensure auto-merge is enabled
+      - name: Update one behind-main PR and ensure PAT auto-merge is enabled
         env:
           GH_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
           REPO: ${{ github.repository }}
         run: |
           [ -n "$GH_TOKEN" ] || { echo "::error::AUTOUPDATE_PAT is not configured"; exit 1; }
 
-          # List open non-draft PRs targeting main (oldest first)
-          prs=$(gh pr list --repo "$REPO" --state open --base main --limit 100             --json number,isDraft,mergeable,mergeStateStatus,headRefName,headRepositoryOwner             --jq '[.[] | select(.isDraft == false and .headRepositoryOwner.login == "'"${REPO%%/*}"'")] | sort_by(.number) | .[].number')
+          prs=$(gh pr list --repo "$REPO" --state open --base main --limit 100             --json number,isDraft,headRepositoryOwner             --jq '[.[] | select(.isDraft == false and .headRepositoryOwner.login == "'"${REPO%%/*}"'")] | sort_by(.number) | .[].number')
 
           for pr in $prs; do
             info=$(gh pr view "$pr" --repo "$REPO" --json mergeable,mergeStateStatus,statusCheckRollup,autoMergeRequest)
             mergeable=$(echo "$info" | jq -r '.mergeable')
             state=$(echo "$info" | jq -r '.mergeStateStatus')
 
-            # Skip conflicting PRs
             if [ "$mergeable" = "CONFLICTING" ] || [ "$state" = "DIRTY" ]; then
               echo "Skipping PR #$pr (has merge conflicts)"
               continue
             fi
 
-            # Skip PRs that already have a failing check on their current commit (avoid infinite retry loops)
-            has_failure=$(echo "$info" | jq '[.statusCheckRollup[]? | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT")] | length')
+            has_failure=$(echo "$info" | jq '[.statusCheckRollup[]? | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "CANCELLED")] | length')
             if [ "$has_failure" -gt 0 ] && [ "$state" != "BEHIND" ]; then
               echo "Skipping PR #$pr ($has_failure failing check(s) on current head)"
               continue
             fi
 
-            # Ensure native auto-merge is enabled on this PR
-            if [ "$(echo "$info" | jq -r '.autoMergeRequest != null')" != "true" ]; then
+            # Reset bot-enabled auto-merge to AUTOUPDATE_PAT so merges trigger main workflows
+            enabled_by=$(echo "$info" | jq -r '.autoMergeRequest.enabledBy.login // ""')
+            if [ "$enabled_by" = "github-actions" ] || [ "$enabled_by" = "github-actions[bot]" ]; then
+              gh pr merge "$pr" --repo "$REPO" --disable-auto || true
+              enabled_by=""
+            fi
+            if [ -z "$enabled_by" ]; then
               gh pr merge "$pr" --repo "$REPO" --auto --squash 2>/dev/null || true
             fi
 
-            # If already CLEAN (up to date & all checks green), merge immediately and exit
+            # Only merge directly if state is CLEAN AND zero failed/pending/skipped checks
             if [ "$state" = "CLEAN" ]; then
-              echo "PR #$pr is CLEAN — merging immediately"
-              gh pr merge "$pr" --repo "$REPO" --squash && exit 0
+              bad_or_pending=$(echo "$info" | jq '[.statusCheckRollup[]? | select(.status != "COMPLETED" or (.conclusion != "SUCCESS" and .conclusion != "NEUTRAL"))] | length')
+              if [ "$bad_or_pending" -eq 0 ]; then
+                echo "PR #$pr is CLEAN with all checks green — merging"
+                gh pr merge "$pr" --repo "$REPO" --squash && exit 0
+              else
+                echo "Skipping PR #$pr ($bad_or_pending non-passing/pending check(s))"
+                continue
+              fi
             fi
 
-            # If BEHIND main, update THIS ONE PR so CI runs cleanly without a thundering herd
             if [ "$state" = "BEHIND" ] || [ "$mergeable" = "MERGEABLE" ]; then
               echo "Updating PR #$pr with latest main..."
               if gh api -X PUT "repos/$REPO/pulls/$pr/update-branch" --silent; then
