@@ -31,7 +31,8 @@ jobs:
           prs=$(gh pr list --repo "$REPO" --state open --base main --limit 100             --json number,isDraft,headRepositoryOwner             --jq '[.[] | select(.isDraft == false and .headRepositoryOwner.login == "'"${REPO%%/*}"'")] | sort_by(.number) | .[].number')
 
           for pr in $prs; do
-            info=$(gh pr view "$pr" --repo "$REPO" --json mergeable,mergeStateStatus,statusCheckRollup,autoMergeRequest)
+            info=$(gh pr view "$pr" --repo "$REPO" --json headRefOid,mergeable,mergeStateStatus,statusCheckRollup,autoMergeRequest)
+            head_sha=$(echo "$info" | jq -r '.headRefOid')
             mergeable=$(echo "$info" | jq -r '.mergeable')
             state=$(echo "$info" | jq -r '.mergeStateStatus')
 
@@ -40,9 +41,13 @@ jobs:
               continue
             fi
 
+            # Check actual commit ancestry rather than mergeStateStatus (which reports BLOCKED/UNSTABLE when behind + failing)
+            behind_by=$(gh api "repos/$REPO/compare/${head_sha}...main" --jq '.ahead_by' 2>/dev/null || echo "0")
+
+            # If already up-to-date with main and has failing checks, skip so it doesn't stall the queue
             has_failure=$(echo "$info" | jq '[.statusCheckRollup[]? | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "CANCELLED")] | length')
-            if [ "$has_failure" -gt 0 ] && [ "$state" != "BEHIND" ]; then
-              echo "Skipping PR #$pr ($has_failure failing check(s) on current head)"
+            if [ "$behind_by" -eq 0 ] && [ "$has_failure" -gt 0 ]; then
+              echo "Skipping PR #$pr (up to date with main, $has_failure failing check(s))"
               continue
             fi
 
@@ -56,30 +61,32 @@ jobs:
               gh pr merge "$pr" --repo "$REPO" --auto --squash 2>/dev/null || true
             fi
 
-            # Only merge directly if state is CLEAN AND zero failed/pending/skipped checks
-            if [ "$state" = "CLEAN" ]; then
-              bad_or_pending=$(echo "$info" | jq '[.statusCheckRollup[]? | select(.status != "COMPLETED" or (.conclusion != "SUCCESS" and .conclusion != "NEUTRAL"))] | length')
-              if [ "$bad_or_pending" -eq 0 ]; then
-                echo "PR #$pr is CLEAN with all checks green — merging"
-                gh pr merge "$pr" --repo "$REPO" --squash && exit 0
-              else
-                echo "Skipping PR #$pr ($bad_or_pending non-passing/pending check(s))"
-                continue
-              fi
-            fi
-
-            if [ "$state" = "BEHIND" ] || [ "$mergeable" = "MERGEABLE" ]; then
-              echo "Updating PR #$pr with latest main..."
+            # If behind main, update THIS ONE PR so it gets the latest main fixes and re-runs CI cleanly
+            if [ "$behind_by" -gt 0 ]; then
+              echo "Updating PR #$pr ($behind_by commit(s) behind main)..."
               if gh api -X PUT "repos/$REPO/pulls/$pr/update-branch" --silent; then
                 echo "Updated PR #$pr; waiting for CI & auto-merge to complete"
                 exit 0
               else
                 echo "::warning::Failed to update PR #$pr, trying next eligible PR"
+                continue
               fi
             fi
+
+            # If already up-to-date and CLEAN with all checks passing, merge immediately
+            if [ "$state" = "CLEAN" ]; then
+              bad_or_pending=$(echo "$info" | jq '[.statusCheckRollup[]? | select(.status != "COMPLETED" or (.conclusion != "SUCCESS" and .conclusion != "NEUTRAL"))] | length')
+              if [ "$bad_or_pending" -eq 0 ]; then
+                echo "PR #$pr is CLEAN with all checks green — merging"
+                gh pr merge "$pr" --repo "$REPO" --squash && exit 0
+              fi
+            fi
+
+            echo "PR #$pr is already up to date with main (state=$state); waiting on checks"
+            exit 0
           done
 
-          echo "No eligible behind-main PRs left to update."
+          echo "No eligible PRs left to update."
 
   auto-comment-merge-conflicts:
     name: Comment on merge conflicts
