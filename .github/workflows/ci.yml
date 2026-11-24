@@ -83,7 +83,14 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [lint, vet, test]
+    if: always()
     steps:
+      - name: Verify prerequisite jobs succeeded
+        if: needs.lint.result != 'success' || needs.vet.result != 'success' || needs.test.result != 'success'
+        run: |
+          echo "::error::Cannot build because prerequisite job(s) did not succeed (lint=${{ needs.lint.result }}, vet=${{ needs.vet.result }}, test=${{ needs.test.result }})"
+          exit 1
+
       - name: Checkout repository
         uses: actions/checkout@v7
 

@@ -1,47 +1,68 @@
 name: Auto Merge
 
 on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, reopened, ready_for_review, synchronize]
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+  workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
-  group: auto-merge-${{ github.event.workflow_run.head_branch }}
+  group: auto-merge-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  merge:
-    name: Merge PR when CI is green
+  enable-auto-merge:
+    name: Enable Auto-Merge on PR
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request'
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_repository.owner.login == github.repository_owner)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Merge PR
+      - name: Enable native auto-merge (using PAT, never bypassing checks)
         env:
           GH_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
           REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
         run: |
-          [ -n "$GH_TOKEN" ] || { echo "::error::AUTOUPDATE_PAT is not available"; exit 1; }
+          [ -n "$GH_TOKEN" ] || { echo "::error::AUTOUPDATE_PAT is not configured"; exit 1; }
 
-          # Skip fork PRs
-          if [ "$HEAD_OWNER" != "${REPO%%/*}" ]; then
-            echo "Run is from a fork, skipping"
-            exit 0
+          ensure_pat_automerge() {
+            local num="$1"
+            local enabled_by
+            enabled_by=$(gh pr view "$num" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest.enabledBy.login // ""')
+            if [ "$enabled_by" = "github-actions" ] || [ "$enabled_by" = "github-actions[bot]" ]; then
+              echo "PR #$num had auto-merge enabled by $enabled_by; resetting with AUTOUPDATE_PAT..."
+              gh pr merge "$num" --repo "$REPO" --disable-auto || true
+              enabled_by=""
+            fi
+            if [ -z "$enabled_by" ]; then
+              echo "Enabling native auto-merge on PR #$num..."
+              gh pr merge "$num" --repo "$REPO" --auto --squash                 || echo "::warning::Could not enable auto-merge on PR #$num (may already be clean or have conflicts)"
+            else
+              echo "PR #$num already has auto-merge enabled by $enabled_by"
+            fi
+          }
+
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_NUMBER" ]; then
+            ensure_pat_automerge "$PR_NUMBER"
+          elif [ "$EVENT_NAME" = "workflow_run" ]; then
+            pr=$(gh pr list --repo "$REPO" --state open --head "$HEAD_BRANCH" --base main               --json number,headRefOid,isDraft               --jq ".[] | select(.isDraft == false and .headRefOid == "$HEAD_SHA") | .number" | head -n1)
+            [ -n "$pr" ] || { echo "No matching open non-draft PR found"; exit 0; }
+            ensure_pat_automerge "$pr"
+          else
+            prs=$(gh pr list --repo "$REPO" --state open --base main --limit 100               --json number,isDraft,mergeable               --jq '.[] | select(.isDraft == false and .mergeable != "CONFLICTING") | .number')
+            for num in $prs; do
+              ensure_pat_automerge "$num"
+            done
           fi
-
-          pr=$(gh pr list --repo "$REPO" --state open --head "$HEAD_BRANCH" --base main \
-            --json number,headRefOid \
-            --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -n1)
-
-          [ -n "$pr" ] || { echo "No open PR matches this run (branch moved or already merged)"; exit 0; }
-
-          echo "Attempting to merge #$pr"
-          gh pr merge "$pr" --repo "$REPO" --squash \
-            || echo "::warning::#$pr not mergeable yet (pending checks, conflicts, or missing review)"

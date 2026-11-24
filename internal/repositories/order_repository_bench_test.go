@@ -1,14 +1,14 @@
 package repository
 
 import (
-	"github.com/lib/pq"
+	"context"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	"github.com/DATA-DOG/go-sqlmock"
-	"context"
+	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 func BenchmarkListOrdersByCustomer_PR223(b *testing.B) {
@@ -16,7 +16,11 @@ func BenchmarkListOrdersByCustomer_PR223(b *testing.B) {
 	if err != nil {
 		b.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
-	defer db.Close()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			b.Logf("failed to close db: %v", closeErr)
+		}
+	}()
 
 	repo := NewOrderRepository(db)
 	ctx := context.Background()
@@ -29,21 +33,22 @@ func BenchmarkListOrdersByCustomer_PR223(b *testing.B) {
 	// Generate 100 mock orders
 	var orders []models.Order
 	orderRows := sqlmock.NewRows([]string{"id", "status", "total_amount", "payment_status", "payment_intent_id", "shipping_address", "created_at", "updated_at"})
-	for i := 0; i < size; i++ {
+	for range size {
 		id := uuid.New()
 		orders = append(orders, models.Order{ID: id})
 		orderRows.AddRow(id, models.OrderStatusDelivered, 50.0, models.PaymentStatusSucceeded, "pi_123", `{"street": "123", "city": "City", "state": "ST", "postal_code": "12345", "country": "US"}`, now, now)
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		// Mock count query
 		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM orders WHERE customer_id = \$1`).WithArgs(customerID).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(size))
 
 		// Mock list orders query
 		// Note: we can't easily reuse orderRows, we need to create a new one each time for the mock
 		currentOrderRows := sqlmock.NewRows([]string{"id", "status", "total_amount", "payment_status", "payment_intent_id", "shipping_address", "created_at", "updated_at"})
-		for _, o := range orders {
+		for i := range orders {
+			o := &orders[i]
 			currentOrderRows.AddRow(o.ID, models.OrderStatusDelivered, 50.0, models.PaymentStatusSucceeded, "pi_123", `{"street": "123", "city": "City", "state": "ST", "postal_code": "12345", "country": "US"}`, now, now)
 		}
 		mock.ExpectQuery(`SELECT id, status, total_amount, payment_status, payment_intent_id, shipping_address, created_at, updated_at FROM orders WHERE customer_id = \$1 ORDER BY created_at DESC LIMIT \$2 OFFSET \$3`).WithArgs(customerID, size, offset).WillReturnRows(currentOrderRows)
@@ -51,7 +56,8 @@ func BenchmarkListOrdersByCustomer_PR223(b *testing.B) {
 		// Mock items query for all orders
 		orderIDs := make([]uuid.UUID, len(orders))
 		itemRows := sqlmock.NewRows([]string{"id", "order_id", "product_id", "quantity", "unit_price", "created_at"})
-		for i, o := range orders {
+		for i := range orders {
+			o := &orders[i]
 			orderIDs[i] = o.ID
 			itemRows.AddRow(uuid.New(), o.ID, uuid.New(), 1, 50.0, now)
 		}

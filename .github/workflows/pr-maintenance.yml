@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -14,20 +16,82 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  autoupdate:
-    name: Update PR branches
+  update-next-pr:
+    name: Update Next Eligible PR (Merge Queue)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Automatically update PRs
-        uses: docker://chinthakagodawita/autoupdate-action:v1
+      - name: Update one behind-main PR and ensure PAT auto-merge is enabled
         env:
-          GITHUB_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
-          MERGE_CONFLICT_ACTION: "ignore"
+          GH_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          [ -n "$GH_TOKEN" ] || { echo "::error::AUTOUPDATE_PAT is not configured"; exit 1; }
+
+          prs=$(gh pr list --repo "$REPO" --state open --base main --limit 100             --json number,isDraft,headRepositoryOwner             --jq '[.[] | select(.isDraft == false and .headRepositoryOwner.login == "'"${REPO%%/*}"'")] | sort_by(.number) | .[].number')
+
+          for pr in $prs; do
+            info=$(gh pr view "$pr" --repo "$REPO" --json headRefOid,mergeable,mergeStateStatus,statusCheckRollup,autoMergeRequest)
+            head_sha=$(echo "$info" | jq -r '.headRefOid')
+            mergeable=$(echo "$info" | jq -r '.mergeable')
+            state=$(echo "$info" | jq -r '.mergeStateStatus')
+
+            if [ "$mergeable" = "CONFLICTING" ] || [ "$state" = "DIRTY" ]; then
+              echo "Skipping PR #$pr (has merge conflicts)"
+              continue
+            fi
+
+            # Check actual commit ancestry rather than mergeStateStatus (which reports BLOCKED/UNSTABLE when behind + failing)
+            behind_by=$(gh api "repos/$REPO/compare/${head_sha}...main" --jq '.ahead_by' 2>/dev/null || echo "0")
+
+            # If already up-to-date with main and has failing checks, skip so it doesn't stall the queue
+            has_failure=$(echo "$info" | jq '[.statusCheckRollup[]? | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "CANCELLED")] | length')
+            if [ "$behind_by" -eq 0 ] && [ "$has_failure" -gt 0 ]; then
+              echo "Skipping PR #$pr (up to date with main, $has_failure failing check(s))"
+              continue
+            fi
+
+            # Reset bot-enabled auto-merge to AUTOUPDATE_PAT so merges trigger main workflows
+            enabled_by=$(echo "$info" | jq -r '.autoMergeRequest.enabledBy.login // ""')
+            if [ "$enabled_by" = "github-actions" ] || [ "$enabled_by" = "github-actions[bot]" ]; then
+              gh pr merge "$pr" --repo "$REPO" --disable-auto || true
+              enabled_by=""
+            fi
+            if [ -z "$enabled_by" ]; then
+              gh pr merge "$pr" --repo "$REPO" --auto --squash 2>/dev/null || true
+            fi
+
+            # If behind main, update THIS ONE PR so it gets the latest main fixes and re-runs CI cleanly
+            if [ "$behind_by" -gt 0 ]; then
+              echo "Updating PR #$pr ($behind_by commit(s) behind main)..."
+              if gh api -X PUT "repos/$REPO/pulls/$pr/update-branch" --silent; then
+                echo "Updated PR #$pr; waiting for CI & auto-merge to complete"
+                exit 0
+              else
+                echo "::warning::Failed to update PR #$pr, trying next eligible PR"
+                continue
+              fi
+            fi
+
+            # If already up-to-date and CLEAN with all checks passing, merge immediately
+            if [ "$state" = "CLEAN" ]; then
+              bad_or_pending=$(echo "$info" | jq '[.statusCheckRollup[]? | select(.status != "COMPLETED" or (.conclusion != "SUCCESS" and .conclusion != "NEUTRAL"))] | length')
+              if [ "$bad_or_pending" -eq 0 ]; then
+                echo "PR #$pr is CLEAN with all checks green — merging"
+                gh pr merge "$pr" --repo "$REPO" --squash && exit 0
+              fi
+            fi
+
+            echo "PR #$pr is already up to date with main (state=$state); waiting on checks"
+            exit 0
+          done
+
+          echo "No eligible PRs left to update."
 
   auto-comment-merge-conflicts:
     name: Comment on merge conflicts
-    needs: autoupdate
-    if: ${{ !cancelled() }}
+    needs: update-next-pr
+    if: ${{ !cancelled() && github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
