@@ -1,0 +1,38 @@
+name: Enable Auto Merge
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  enable-auto-merge:
+    name: Enable auto-merge
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Enable auto-merge (squash)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr merge "$PR_NUMBER" \
+            --repo "$REPO" \
+            --auto \
+            --squash
