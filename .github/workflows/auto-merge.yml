@@ -1,47 +1,63 @@
 name: Auto Merge
 
 on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, reopened, ready_for_review, synchronize]
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+  workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
-  group: auto-merge-${{ github.event.workflow_run.head_branch }}
+  group: auto-merge-${{ github.event.pull_request.number || github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  merge:
-    name: Merge PR when CI is green
+  enable-auto-merge:
+    name: Enable Auto-Merge on PR
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'pull_request'
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_repository.owner.login == github.repository_owner)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Merge PR
+      - name: Enable native auto-merge (or merge if already clean)
         env:
           GH_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
           REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
         run: |
-          [ -n "$GH_TOKEN" ] || { echo "::error::AUTOUPDATE_PAT is not available"; exit 1; }
+          [ -n "$GH_TOKEN" ] || { echo "::error::AUTOUPDATE_PAT is not configured"; exit 1; }
 
-          # Skip fork PRs
-          if [ "$HEAD_OWNER" != "${REPO%%/*}" ]; then
-            echo "Run is from a fork, skipping"
-            exit 0
+          merge_or_queue() {
+            local num="$1"
+            echo "Enabling auto-merge on PR #$num..."
+            if gh pr merge "$num" --repo "$REPO" --auto --squash 2>&1; then
+              echo "Auto-merge enabled on PR #$num"
+            else
+              echo "PR #$num may already be in clean state; attempting immediate squash merge..."
+              gh pr merge "$num" --repo "$REPO" --squash                 || echo "::warning::PR #$num could not be queued or merged yet (conflicts, failing checks, or missing approval)"
+            fi
+          }
+
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_NUMBER" ]; then
+            merge_or_queue "$PR_NUMBER"
+          elif [ "$EVENT_NAME" = "workflow_run" ]; then
+            pr=$(gh pr list --repo "$REPO" --state open --head "$HEAD_BRANCH" --base main               --json number,headRefOid,isDraft               --jq ".[] | select(.isDraft == false and .headRefOid == "$HEAD_SHA") | .number" | head -n1)
+            [ -n "$pr" ] || { echo "No matching open non-draft PR found"; exit 0; }
+            merge_or_queue "$pr"
+          else
+            # workflow_dispatch: bulk-enable auto-merge on all open, non-draft, non-conflicting PRs
+            prs=$(gh pr list --repo "$REPO" --state open --base main --limit 100               --json number,isDraft,mergeable,autoMergeRequest               --jq '.[] | select(.isDraft == false and .mergeable != "CONFLICTING" and .autoMergeRequest == null) | .number')
+            for num in $prs; do
+              merge_or_queue "$num"
+            done
           fi
-
-          pr=$(gh pr list --repo "$REPO" --state open --head "$HEAD_BRANCH" --base main \
-            --json number,headRefOid \
-            --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -n1)
-
-          [ -n "$pr" ] || { echo "No open PR matches this run (branch moved or already merged)"; exit 0; }
-
-          echo "Attempting to merge #$pr"
-          gh pr merge "$pr" --repo "$REPO" --squash \
-            || echo "::warning::#$pr not mergeable yet (pending checks, conflicts, or missing review)"
