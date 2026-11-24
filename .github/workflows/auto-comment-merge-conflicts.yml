@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true 
+  group: auto-comment-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   auto-comment-merge-conflicts:
