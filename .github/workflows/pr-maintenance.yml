@@ -1,0 +1,43 @@
+name: PR Maintenance
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-maintenance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  autoupdate:
+    name: Update PR branches
+    runs-on: ubuntu-latest
+    steps:
+      - name: Automatically update PRs
+        uses: docker://chinthakagodawita/autoupdate-action:v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
+          MERGE_CONFLICT_ACTION: "ignore"
+
+  auto-comment-merge-conflicts:
+    name: Comment on merge conflicts
+    needs: autoupdate
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Auto Comment Merge Conflict
+        uses: CodyTseng/auto-comment-merge-conflicts@v1.6.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          wait-ms: 3000
+          max-retries: 5
+          label-name: merge-conflict
+          ignore-authors: dependabot[bot],renovate[bot]
