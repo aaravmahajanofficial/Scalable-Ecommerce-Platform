@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: autoupdate-${{ github.ref }}
+  group: auto-comment-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
