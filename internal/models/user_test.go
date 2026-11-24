@@ -108,7 +108,6 @@ func TestRegisterRequest_Validation(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := validate.Struct(tc.req)
@@ -164,7 +163,6 @@ func TestLoginRequest_Validation(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := validate.Struct(tc.req)
@@ -220,7 +218,7 @@ func TestClaims_JWT(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, tokenString)
 
-	parsedToken, err := jwt.ParseWithClaims(tokenString, &models.Claims{}, func(t *jwt.Token) (interface{}, error) {
+	parsedToken, err := jwt.ParseWithClaims(tokenString, &models.Claims{}, func(_ *jwt.Token) (any, error) {
 		return secretKey, nil
 	})
 	require.NoError(t, err)
