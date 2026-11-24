@@ -3,20 +3,43 @@ name: Enable Auto Merge
 on:
   pull_request:
     types: [opened, reopened, ready_for_review]
-  
+
   workflow_dispatch:
-    
-permissions:
-  pull-requests: write
-  contents: write
+    inputs:
+      pr_number:
+        description: "Pull request number"
+        required: true
+        type: number
+
+permissions: {}
+
+concurrency:
+  group: auto-merge-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
 
 jobs:
   enable-auto-merge:
-    if: github.event.pull_request.draft == false
+    name: Enable auto-merge
+    # Manual runs always go through. PR events only for non-draft PRs
+    # from this repo (fork PRs get a read-only token and would fail anyway).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+
     steps:
-      - name: Enable auto-merge
-        run: gh pr merge "$PR_URL" --auto --squash
+      - name: Enable auto-merge (squash)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh pr merge "$PR_NUMBER" \
+            --repo "$REPO" \
+            --auto \
+            --squash
