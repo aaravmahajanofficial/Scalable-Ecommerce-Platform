@@ -5,6 +5,11 @@ on:
     types: [opened, reopened, ready_for_review]
 
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        type: string
 
 permissions: {}
 
