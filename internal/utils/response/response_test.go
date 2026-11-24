@@ -98,3 +98,56 @@ func TestError_AppErrorWithDetails(t *testing.T) {
 	require.Len(t, resp.Error.Details, 1)
 	assert.Equal(t, "email is required", resp.Error.Details[0])
 }
+
+func TestWriteJSON_PR183(t *testing.T) {
+	t.Run("writes JSON correctly", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		data := map[string]string{"key": "value"}
+
+		err := response.WriteJSON(recorder, http.StatusOK, data)
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+
+		var responseBody map[string]string
+		err = json.Unmarshal(recorder.Body.Bytes(), &responseBody)
+		assert.NoError(t, err)
+		assert.Equal(t, data, responseBody)
+	})
+}
+
+func TestSuccess_PR183(t *testing.T) {
+	t.Run("writes success response correctly", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		data := map[string]string{"message": "success data"}
+
+		response.Success(recorder, http.StatusCreated, data)
+
+		assert.Equal(t, http.StatusCreated, recorder.Code)
+		assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+
+		var responseBody response.APIResponse
+		err := json.Unmarshal(recorder.Body.Bytes(), &responseBody)
+		assert.NoError(t, err)
+		assert.True(t, responseBody.Success)
+
+		expectedData := map[string]any{"message": "success data"}
+		assert.Equal(t, expectedData, responseBody.Data)
+	})
+
+	t.Run("writes success response with nil data", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+
+		response.Success(recorder, http.StatusOK, nil)
+
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+
+		var responseBody response.APIResponse
+		err := json.Unmarshal(recorder.Body.Bytes(), &responseBody)
+		assert.NoError(t, err)
+		assert.True(t, responseBody.Success)
+		assert.Nil(t, responseBody.Data)
+	})
+}
