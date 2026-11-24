@@ -3,6 +3,8 @@ module github.com/aaravmahajanofficial/scalable-ecommerce-platform
 go 1.26.5
 
 require (
+	github.com/yuin/gopher-lua v1.1.1 // indirect
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/XSAM/otelsql v0.44.0
 	github.com/go-redis/redismock/v9 v9.2.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
