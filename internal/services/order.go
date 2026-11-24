@@ -28,7 +28,7 @@ func NewOrderService(orderRepo repository.OrderRepository, cartRepo repository.C
 }
 
 func (s *orderService) validateAndGetProducts(ctx context.Context, cart *models.Cart) (map[uuid.UUID]*models.Product, error) {
-	var productIDs []uuid.UUID
+	productIDs := make([]uuid.UUID, 0, len(cart.Items))
 	for _, item := range cart.Items {
 		productIDs = append(productIDs, item.ProductID)
 	}
@@ -38,7 +38,7 @@ func (s *orderService) validateAndGetProducts(ctx context.Context, cart *models.
 		return nil, apperrors.DatabaseError("Failed to fetch products").WithError(err)
 	}
 
-	productMap := make(map[uuid.UUID]*models.Product)
+	productMap := make(map[uuid.UUID]*models.Product, len(products))
 	for _, p := range products {
 		productMap[p.ID] = p
 	}
