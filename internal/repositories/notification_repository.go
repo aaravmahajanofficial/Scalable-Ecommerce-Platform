@@ -28,7 +28,7 @@ func NewNotificationRepo(db *sql.DB) NotificationRepository {
 }
 
 func (r *notificationRepository) CreateNotification(ctx context.Context, notification *models.Notification) error {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `
@@ -45,7 +45,7 @@ func (r *notificationRepository) CreateNotification(ctx context.Context, notific
 }
 
 func (r *notificationRepository) GetNotificationByID(ctx context.Context, id uuid.UUID) (*models.Notification, error) {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `
@@ -69,7 +69,7 @@ func (r *notificationRepository) GetNotificationByID(ctx context.Context, id uui
 }
 
 func (r *notificationRepository) UpdateNotificationStatus(ctx context.Context, id uuid.UUID, status models.NotificationStatus, errorMsg string) error {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `
@@ -120,7 +120,7 @@ func (r *notificationRepository) scanNotificationRows(rows *sql.Rows) ([]*models
 }
 
 func (r *notificationRepository) ListNotifications(ctx context.Context, page, size int) ([]*models.Notification, int, error) {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	var total int

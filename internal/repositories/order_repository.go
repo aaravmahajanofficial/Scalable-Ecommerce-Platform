@@ -31,7 +31,7 @@ func NewOrderRepository(db *sql.DB) OrderRepository {
 }
 
 func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) error {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	shippingAddress, err := json.Marshal(order.ShippingAddress)
@@ -83,7 +83,7 @@ func (r *orderRepository) CreateOrder(ctx context.Context, order *models.Order) 
 
 // GetOrderByID retrieves an order by its ID along with its associated order items.
 func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*models.Order, error) {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	order := &models.Order{
@@ -235,7 +235,7 @@ func (r *orderRepository) populateOrderItems(ctx context.Context, orders []model
 }
 
 func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID uuid.UUID, page, size int) ([]models.Order, int, error) {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	var total int
@@ -284,7 +284,7 @@ func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID u
 
 // Update Order status.
 func (r *orderRepository) UpdateOrderStatus(ctx context.Context, id uuid.UUID, status models.OrderStatus) (*models.Order, error) {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `
@@ -315,7 +315,7 @@ func (r *orderRepository) UpdateOrderStatus(ctx context.Context, id uuid.UUID, s
 
 // Update the Payment Status and Payment Intent ID of an order.
 func (r *orderRepository) UpdatePaymentStatus(ctx context.Context, id uuid.UUID, status models.PaymentStatus, paymentIntentID string) error {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `

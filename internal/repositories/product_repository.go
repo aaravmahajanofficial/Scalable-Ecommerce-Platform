@@ -69,7 +69,7 @@ func scanProductRows(rows *sql.Rows) ([]*models.Product, error) {
 }
 
 func (r *productRepository) CreateProduct(ctx context.Context, product *models.Product) error {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `INSERT INTO products (category_id, name, description, price, stock_quantity, sku, status)
@@ -81,7 +81,7 @@ func (r *productRepository) CreateProduct(ctx context.Context, product *models.P
 }
 
 func (r *productRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*models.Product, error) {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `
@@ -101,7 +101,7 @@ func (r *productRepository) GetProductByID(ctx context.Context, id uuid.UUID) (*
 }
 
 func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUID) ([]*models.Product, error) {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	if len(ids) == 0 {
@@ -126,7 +126,7 @@ func (r *productRepository) GetProductsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 func (r *productRepository) UpdateProduct(ctx context.Context, product *models.Product) error {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	query := `
@@ -143,7 +143,7 @@ func (r *productRepository) UpdateProducts(ctx context.Context, products []*mode
 		return nil
 	}
 
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	tx, err := r.DB.BeginTx(dbCtx, nil)
@@ -184,7 +184,7 @@ func (r *productRepository) UpdateProducts(ctx context.Context, products []*mode
 }
 
 func (r *productRepository) ListProducts(ctx context.Context, page, size int) ([]*models.Product, int, error) {
-	dbCtx, cancel := apputils.WithDBTimeout(ctx)
+	dbCtx, cancel := context.WithTimeout(ctx, apputils.DefaultDBTimeout)
 	defer cancel()
 
 	var total int
