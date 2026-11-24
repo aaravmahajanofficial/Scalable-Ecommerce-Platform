@@ -7,14 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: Pull request number
-        required: true
+        description: Pull request number (leave empty to process all open PRs)
+        required: false
         type: string
 
 permissions: {}
 
 concurrency:
-  group: auto-merge-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: auto-merge-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -37,7 +37,17 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           REPO: ${{ github.repository }}
         run: |
-          gh pr merge "$PR_NUMBER" \
-            --repo "$REPO" \
-            --auto \
-            --squash
+          if [ -n "$PR_NUMBER" ]; then
+            prs="$PR_NUMBER"
+          else
+            prs=$(gh pr list --repo "$REPO" --state open --base main \
+              --search "draft:false" \
+              --json number,isCrossRepository \
+              --jq '.[] | select(.isCrossRepository == false) | .number')
+          fi
+
+          for pr in $prs; do
+            echo "Enabling auto-merge on #$pr"
+            gh pr merge "$pr" --repo "$REPO" --auto --squash \
+              || echo "::warning::Could not enable auto-merge on #$pr"
+          done
