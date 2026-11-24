@@ -34,7 +34,7 @@ jobs:
       contents: read
     steps:
       - name: Auto Comment Merge Conflict
-        uses: CodyTseng/auto-comment-merge-conflicts@v1.6.0
+        uses: CodyTseng/auto-comment-merge-conflicts@9bd82d4a489f3adbfa3cc35dda2af97b9a17fd32 # v1.6.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           wait-ms: 3000
