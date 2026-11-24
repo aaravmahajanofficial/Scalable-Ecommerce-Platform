@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: auto-update-${{ github.ref }}
   cancel-in-progress: true 
 
 jobs:
