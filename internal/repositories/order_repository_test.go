@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"github.com/lib/pq"
 	"regexp"
 	"testing"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
 	repository "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

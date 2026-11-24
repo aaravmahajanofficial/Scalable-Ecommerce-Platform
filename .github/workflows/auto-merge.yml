@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Enable native auto-merge (or merge if already clean)
+      - name: Enable native auto-merge (using PAT, never bypassing checks)
         env:
           GH_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
           REPO: ${{ github.repository }}
@@ -37,27 +37,32 @@ jobs:
         run: |
           [ -n "$GH_TOKEN" ] || { echo "::error::AUTOUPDATE_PAT is not configured"; exit 1; }
 
-          merge_or_queue() {
+          ensure_pat_automerge() {
             local num="$1"
-            echo "Enabling auto-merge on PR #$num..."
-            if gh pr merge "$num" --repo "$REPO" --auto --squash 2>&1; then
-              echo "Auto-merge enabled on PR #$num"
+            local enabled_by
+            enabled_by=$(gh pr view "$num" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest.enabledBy.login // ""')
+            if [ "$enabled_by" = "github-actions" ] || [ "$enabled_by" = "github-actions[bot]" ]; then
+              echo "PR #$num had auto-merge enabled by $enabled_by; resetting with AUTOUPDATE_PAT..."
+              gh pr merge "$num" --repo "$REPO" --disable-auto || true
+              enabled_by=""
+            fi
+            if [ -z "$enabled_by" ]; then
+              echo "Enabling native auto-merge on PR #$num..."
+              gh pr merge "$num" --repo "$REPO" --auto --squash                 || echo "::warning::Could not enable auto-merge on PR #$num (may already be clean or have conflicts)"
             else
-              echo "PR #$num may already be in clean state; attempting immediate squash merge..."
-              gh pr merge "$num" --repo "$REPO" --squash                 || echo "::warning::PR #$num could not be queued or merged yet (conflicts, failing checks, or missing approval)"
+              echo "PR #$num already has auto-merge enabled by $enabled_by"
             fi
           }
 
           if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_NUMBER" ]; then
-            merge_or_queue "$PR_NUMBER"
+            ensure_pat_automerge "$PR_NUMBER"
           elif [ "$EVENT_NAME" = "workflow_run" ]; then
             pr=$(gh pr list --repo "$REPO" --state open --head "$HEAD_BRANCH" --base main               --json number,headRefOid,isDraft               --jq ".[] | select(.isDraft == false and .headRefOid == "$HEAD_SHA") | .number" | head -n1)
             [ -n "$pr" ] || { echo "No matching open non-draft PR found"; exit 0; }
-            merge_or_queue "$pr"
+            ensure_pat_automerge "$pr"
           else
-            # workflow_dispatch: bulk-enable auto-merge on all open, non-draft, non-conflicting PRs
-            prs=$(gh pr list --repo "$REPO" --state open --base main --limit 100               --json number,isDraft,mergeable,autoMergeRequest               --jq '.[] | select(.isDraft == false and .mergeable != "CONFLICTING" and .autoMergeRequest == null) | .number')
+            prs=$(gh pr list --repo "$REPO" --state open --base main --limit 100               --json number,isDraft,mergeable               --jq '.[] | select(.isDraft == false and .mergeable != "CONFLICTING") | .number')
             for num in $prs; do
-              merge_or_queue "$num"
+              ensure_pat_automerge "$num"
             done
           fi
