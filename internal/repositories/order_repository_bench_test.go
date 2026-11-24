@@ -1,90 +1,64 @@
-package repository_test
+package repository
 
 import (
-	"context"
-	"encoding/json"
-	"regexp"
+	"github.com/lib/pq"
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
-	repository "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/repositories"
 	"github.com/google/uuid"
-	"github.com/lib/pq"
+	"github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/models"
+	"github.com/DATA-DOG/go-sqlmock"
+	"context"
 )
 
-func BenchmarkListOrdersByCustomer_PR315(b *testing.B) {
-	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherRegexp))
+func BenchmarkListOrdersByCustomer_PR223(b *testing.B) {
+	db, mock, err := sqlmock.New()
 	if err != nil {
-		b.Fatalf("Failed to create sqlmock: %v", err)
+		b.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			b.Logf("failed to close mock db: %v", closeErr)
-		}
-	}()
+	defer db.Close()
 
-	repo := repository.NewOrderRepository(db)
+	repo := NewOrderRepository(db)
 	ctx := context.Background()
+
 	customerID := uuid.New()
+	page, size := 1, 100
+	offset := (page - 1) * size
 	now := time.Now()
 
-	numOrders := 50
-	orders := make([]models.Order, numOrders)
-	orderIDs := make([]uuid.UUID, numOrders)
-
-	addr := &models.Address{Street: "List St", City: "Listville", State: "LS", PostalCode: "11111", Country: "US"}
-	addrJSON, err := json.Marshal(addr)
-	if err != nil {
-		b.Fatalf("failed to marshal addr: %v", err)
+	// Generate 100 mock orders
+	var orders []models.Order
+	orderRows := sqlmock.NewRows([]string{"id", "status", "total_amount", "payment_status", "payment_intent_id", "shipping_address", "created_at", "updated_at"})
+	for i := 0; i < size; i++ {
+		id := uuid.New()
+		orders = append(orders, models.Order{ID: id})
+		orderRows.AddRow(id, models.OrderStatusDelivered, 50.0, models.PaymentStatusSucceeded, "pi_123", `{"street": "123", "city": "City", "state": "ST", "postal_code": "12345", "country": "US"}`, now, now)
 	}
-
-	for i := range numOrders {
-		orderIDs[i] = uuid.New()
-		orders[i] = models.Order{
-			ID:              orderIDs[i],
-			CustomerID:      customerID,
-			Status:          models.OrderStatusDelivered,
-			TotalAmount:     50.0,
-			PaymentStatus:   models.PaymentStatusSucceeded,
-			ShippingAddress: addr,
-			CreatedAt:       now,
-			UpdatedAt:       now,
-		}
-	}
-
-	expectedCountSQL := regexp.QuoteMeta(`SELECT COUNT(*) FROM orders WHERE customer_id = $1`)
-	expectedListOrdersSQL := regexp.QuoteMeta(`
-        SELECT id, status, total_amount, payment_status, payment_intent_id, shipping_address, created_at, updated_at
-        FROM orders
-        WHERE customer_id = $1
-        ORDER BY created_at DESC
-        LIMIT $2 OFFSET $3
-    `)
-	expectedListItemsSQL := regexp.QuoteMeta(`
-        SELECT id, order_id, product_id, quantity, unit_price, created_at
-        FROM order_items
-        WHERE order_id = ANY($1)
-    `)
 
 	b.ResetTimer()
-	for range b.N {
-		mock.ExpectQuery(expectedCountSQL).WithArgs(customerID).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(numOrders))
+	for i := 0; i < b.N; i++ {
+		// Mock count query
+		mock.ExpectQuery(`SELECT COUNT\(\*\) FROM orders WHERE customer_id = \$1`).WithArgs(customerID).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(size))
 
-		orderRows := sqlmock.NewRows([]string{"id", "status", "total_amount", "payment_status", "payment_intent_id", "shipping_address", "created_at", "updated_at"})
-		for j := range numOrders {
-			orderRows.AddRow(orders[j].ID, orders[j].Status, orders[j].TotalAmount, orders[j].PaymentStatus, orders[j].PaymentIntentID, addrJSON, orders[j].CreatedAt, orders[j].UpdatedAt)
+		// Mock list orders query
+		// Note: we can't easily reuse orderRows, we need to create a new one each time for the mock
+		currentOrderRows := sqlmock.NewRows([]string{"id", "status", "total_amount", "payment_status", "payment_intent_id", "shipping_address", "created_at", "updated_at"})
+		for _, o := range orders {
+			currentOrderRows.AddRow(o.ID, models.OrderStatusDelivered, 50.0, models.PaymentStatusSucceeded, "pi_123", `{"street": "123", "city": "City", "state": "ST", "postal_code": "12345", "country": "US"}`, now, now)
 		}
-		mock.ExpectQuery(expectedListOrdersSQL).WithArgs(customerID, 50, 0).WillReturnRows(orderRows)
+		mock.ExpectQuery(`SELECT id, status, total_amount, payment_status, payment_intent_id, shipping_address, created_at, updated_at FROM orders WHERE customer_id = \$1 ORDER BY created_at DESC LIMIT \$2 OFFSET \$3`).WithArgs(customerID, size, offset).WillReturnRows(currentOrderRows)
 
+		// Mock items query for all orders
+		orderIDs := make([]uuid.UUID, len(orders))
 		itemRows := sqlmock.NewRows([]string{"id", "order_id", "product_id", "quantity", "unit_price", "created_at"})
-		for j := range numOrders {
-			itemRows.AddRow(uuid.New(), orders[j].ID, uuid.New(), 1, 50.0, now)
+		for i, o := range orders {
+			orderIDs[i] = o.ID
+			itemRows.AddRow(uuid.New(), o.ID, uuid.New(), 1, 50.0, now)
 		}
-		mock.ExpectQuery(expectedListItemsSQL).WithArgs(pq.Array(orderIDs)).WillReturnRows(itemRows)
+		mock.ExpectQuery(`SELECT id, order_id, product_id, quantity, unit_price, created_at FROM order_items WHERE order_id = ANY\(\$1\)`).WithArgs(pq.Array(orderIDs)).WillReturnRows(itemRows)
 
-		if _, _, err := repo.ListOrdersByCustomer(ctx, customerID, 1, 50); err != nil {
+		_, _, err := repo.ListOrdersByCustomer(ctx, customerID, page, size)
+		if err != nil {
 			b.Fatalf("ListOrdersByCustomer failed: %v", err)
 		}
 	}
