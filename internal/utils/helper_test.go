@@ -3,17 +3,17 @@ package apputils_test
 import (
 	"context"
 	"errors"
-	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
-	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	apperrors "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/errors"
 	apputils "github.com/aaravmahajanofficial/scalable-ecommerce-platform/internal/utils"
+	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseInt(t *testing.T) {
@@ -78,7 +78,7 @@ type testPayloadExtended struct {
 
 type errReader struct{}
 
-func (e *errReader) Read(p []byte) (n int, err error) {
+func (e *errReader) Read(_ []byte) (n int, err error) {
 	return 0, errors.New("read error")
 }
 
@@ -88,7 +88,7 @@ func (e *errReader) Close() error {
 
 func TestDecodeJSONBody(t *testing.T) {
 	t.Run("Valid JSON", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"John","email":"john@example.com","age":25,"status":"active"}`))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(`{"name":"John","email":"john@example.com","age":25,"status":"active"}`))
 		var dest testPayloadExtended
 		err := apputils.DecodeJSONBody(req, &dest)
 		assert.NoError(t, err)
@@ -96,7 +96,7 @@ func TestDecodeJSONBody(t *testing.T) {
 	})
 
 	t.Run("Empty body", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(""))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(""))
 		var dest testPayloadExtended
 		err := apputils.DecodeJSONBody(req, &dest)
 		assert.Error(t, err)
@@ -104,7 +104,7 @@ func TestDecodeJSONBody(t *testing.T) {
 	})
 
 	t.Run("Invalid JSON", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"John",`))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(`{"name":"John",`))
 		var dest testPayloadExtended
 		err := apputils.DecodeJSONBody(req, &dest)
 		assert.Error(t, err)
@@ -112,7 +112,7 @@ func TestDecodeJSONBody(t *testing.T) {
 	})
 
 	t.Run("Read error", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", &errReader{})
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", &errReader{})
 		var dest testPayloadExtended
 		err := apputils.DecodeJSONBody(req, &dest)
 		assert.Error(t, err)
@@ -172,7 +172,7 @@ func TestParseAndValidate(t *testing.T) {
 	val := validator.New()
 
 	t.Run("Valid payload", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"John","email":"john@example.com","age":25,"status":"active"}`))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(`{"name":"John","email":"john@example.com","age":25,"status":"active"}`))
 		w := httptest.NewRecorder()
 		var dest testPayloadExtended
 
@@ -182,7 +182,7 @@ func TestParseAndValidate(t *testing.T) {
 	})
 
 	t.Run("Invalid JSON", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"John",`))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(`{"name":"John",`))
 		w := httptest.NewRecorder()
 		var dest testPayloadExtended
 
@@ -192,7 +192,7 @@ func TestParseAndValidate(t *testing.T) {
 	})
 
 	t.Run("Validation Error", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"J","email":"invalid","age":10,"status":"pending"}`))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(`{"name":"J","email":"invalid","age":10,"status":"pending"}`))
 		w := httptest.NewRecorder()
 		var dest testPayloadExtended
 
@@ -206,7 +206,7 @@ func TestParseAndValidate(t *testing.T) {
 
 func TestParseInt_PR221(t *testing.T) {
 	t.Run("Valid ID", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 		req.SetPathValue("id", "123")
 
 		id, err := apputils.ParseInt(req, "id")
@@ -215,7 +215,7 @@ func TestParseInt_PR221(t *testing.T) {
 	})
 
 	t.Run("Invalid ID", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 		req.SetPathValue("id", "abc")
 
 		id, err := apputils.ParseInt(req, "id")
@@ -227,7 +227,7 @@ func TestParseInt_PR221(t *testing.T) {
 
 func TestParseID(t *testing.T) {
 	t.Run("Valid UUID", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 		validUUID := uuid.New()
 		req.SetPathValue("user_id", validUUID.String())
 
@@ -237,7 +237,7 @@ func TestParseID(t *testing.T) {
 	})
 
 	t.Run("Missing UUID", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 		req.SetPathValue("user_id", "")
 
 		id, err := apputils.ParseID(req, "user_id")
@@ -247,7 +247,7 @@ func TestParseID(t *testing.T) {
 	})
 
 	t.Run("Invalid UUID", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 		req.SetPathValue("user_id", "invalid-uuid")
 
 		id, err := apputils.ParseID(req, "user_id")
