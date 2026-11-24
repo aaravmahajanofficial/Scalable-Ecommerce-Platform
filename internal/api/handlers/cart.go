@@ -45,7 +45,7 @@ func (h *CartHandler) GetCart() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized cart access attempt: missing user claims")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
@@ -108,7 +108,7 @@ func (h *CartHandler) AddItem() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized cart add item attempt: missing user claims")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
@@ -167,7 +167,7 @@ func (h *CartHandler) UpdateQuantity() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized cart update quantity attempt: missing user claims")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
