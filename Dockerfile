@@ -16,9 +16,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/scalable-ecommerc
 
 
 # Stage 2 - Minimal Runtime
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=build /app/scalable-ecommerce /app/scalable-ecommerce
+
+USER nonroot:nonroot
 
 EXPOSE 8085
 
