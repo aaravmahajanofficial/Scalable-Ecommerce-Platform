@@ -49,7 +49,7 @@ func (h *NotificationHandler) SendEmail() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized notification creation attempt")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
@@ -102,7 +102,7 @@ func (h *NotificationHandler) ListNotifications() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order access attempt")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
