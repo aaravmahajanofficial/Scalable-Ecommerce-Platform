@@ -9,12 +9,9 @@ on:
 jobs:
   autoupdate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
     steps:
       - name: Automatically update PRs
         uses: docker://chinthakagodawita/autoupdate-action:v1
         env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          GITHUB_TOKEN: "${{ secrets.AUTOUPDATE_PAT }}"
           MERGE_CONFLICT_ACTION: "ignore"
