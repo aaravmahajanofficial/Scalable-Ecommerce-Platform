@@ -45,7 +45,7 @@ func (h *OrderHandler) CreateOrder() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order creation attempt")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
@@ -95,7 +95,7 @@ func (h *OrderHandler) GetOrder() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order access attempt: missing user claims")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
@@ -157,7 +157,7 @@ func (h *OrderHandler) ListOrders() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order list attempt: missing user claims")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
@@ -219,7 +219,7 @@ func (h *OrderHandler) UpdateOrderStatus() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized order status update attempt: missing user claims")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}

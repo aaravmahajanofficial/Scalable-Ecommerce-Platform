@@ -135,7 +135,7 @@ func (h *UserHandler) Profile() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized access attempt: missing user claims in context")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
