@@ -621,8 +621,8 @@ func runWebhookFailureCase(t *testing.T, tc *webhookFailureCase, signature, stri
 func TestNewPaymentService_PR218(t *testing.T) {
 	mockRepo := repoMocks.NewMockPaymentRepository(t)
 	mockStripeClient := stripeMocks.NewMockClient(t)
-	service := service.NewPaymentService(mockRepo, mockStripeClient)
-	assert.NotNil(t, service)
+	paymentService := service.NewPaymentService(mockRepo, mockStripeClient)
+	assert.NotNil(t, paymentService)
 }
 
 func TestCreatePayment_PR218(t *testing.T) {
@@ -966,7 +966,7 @@ func TestProcessWebhook_PR218(t *testing.T) {
 		ID:   "evt_456",
 		Type: "payment_intent.payment_failed",
 		Data: &stripe.EventData{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"id": stripePaymentIntentID,
 			},
 		},
@@ -985,14 +985,14 @@ func TestProcessWebhook_PR218(t *testing.T) {
 		ID:   "evt_000",
 		Type: "customer.created",
 		Data: &stripe.EventData{
-			Object: map[string]interface{}{"id": "cus_123"},
+			Object: map[string]any{"id": "cus_123"},
 		},
 	}
 	eventMissingID := stripe.Event{
 		ID:   "evt_bad",
 		Type: "payment_intent.succeeded",
 		Data: &stripe.EventData{
-			Object: map[string]interface{}{
+			Object: map[string]any{
 				"amount": 1000,
 			},
 		},
@@ -1111,7 +1111,7 @@ func TestProcessWebhook_PR218(t *testing.T) {
 			ID:   "evt_not_string",
 			Type: "payment_intent.succeeded",
 			Data: &stripe.EventData{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"id": 12345,
 				},
 			},
@@ -1143,7 +1143,7 @@ func TestProcessWebhook_PR218(t *testing.T) {
 			ID:   "evt_empty_id",
 			Type: "payment_intent.succeeded",
 			Data: &stripe.EventData{
-				Object: map[string]interface{}{
+				Object: map[string]any{
 					"id": "",
 				},
 			},
@@ -1197,7 +1197,7 @@ func TestProcessWebhook_PR218(t *testing.T) {
 		eventNotStringFailed := stripe.Event{
 			ID:   "evt_not_string_fail",
 			Type: "payment_intent.payment_failed",
-			Data: &stripe.EventData{Object: map[string]interface{}{"id": 12345}},
+			Data: &stripe.EventData{Object: map[string]any{"id": 12345}},
 		}
 		payloadNotStringFailed := []byte(`{"id": "evt_not_string_fail", "type": "payment_intent.payment_failed", "data": {"object": {"id": 12345}}}`)
 		mockStripeClient.On("VerifyWebhookSignature", payloadNotStringFailed, signature).Return(eventNotStringFailed, nil).Once()
@@ -1225,7 +1225,7 @@ func TestProcessWebhook_PR218(t *testing.T) {
 		eventEmptyIDFailed := stripe.Event{
 			ID:   "evt_empty_id_fail",
 			Type: "payment_intent.payment_failed",
-			Data: &stripe.EventData{Object: map[string]interface{}{"id": ""}},
+			Data: &stripe.EventData{Object: map[string]any{"id": ""}},
 		}
 		payloadEmptyIDFailed := []byte(`{"id": "evt_empty_id_fail", "type": "payment_intent.payment_failed", "data": {"object": {"id": ""}}}`)
 		mockStripeClient.On("VerifyWebhookSignature", payloadEmptyIDFailed, signature).Return(eventEmptyIDFailed, nil).Once()
@@ -1301,7 +1301,7 @@ func TestProcessWebhook_PR218(t *testing.T) {
 		eventMissingIDFailed := stripe.Event{
 			ID:   "evt_bad_fail",
 			Type: "payment_intent.payment_failed",
-			Data: &stripe.EventData{Object: map[string]interface{}{"reason": "card_declined"}},
+			Data: &stripe.EventData{Object: map[string]any{"reason": "card_declined"}},
 		}
 		payloadMissingIDFailed := []byte(`{"id": "evt_bad_fail", "type": "payment_intent.payment_failed", "data": {"object": {"reason": "card_declined"}}}`)
 		mockStripeClient.On("VerifyWebhookSignature", payloadMissingIDFailed, signature).Return(eventMissingIDFailed, nil).Once()
