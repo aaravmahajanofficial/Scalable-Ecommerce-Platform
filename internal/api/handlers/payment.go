@@ -47,7 +47,7 @@ func (h *PaymentHandler) CreatePayment() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized payment creation attempt: missing user claims")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
@@ -111,7 +111,7 @@ func (h *PaymentHandler) GetPayment() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized payment get attempt: missing user claims")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
@@ -162,7 +162,7 @@ func (h *PaymentHandler) ListPayments() http.HandlerFunc {
 		claims, ok := r.Context().Value(middleware.UserContextKey).(*models.Claims)
 		if !ok {
 			logger.Warn("Unauthorized payment list attempt: missing user claims")
-			response.Error(w, apperrors.UnauthorizedError("Authentication required"))
+			response.Error(w, apperrors.UnauthorizedError(errMsgAuthRequired))
 
 			return
 		}
