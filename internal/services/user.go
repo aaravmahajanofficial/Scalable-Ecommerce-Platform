@@ -123,7 +123,7 @@ func (s *userService) authenticateUser(ctx context.Context, email, password stri
 	return user, nil
 }
 
-func (s *userService) generateAuthToken(user *models.User) (string, int, error) {
+func (s *userService) generateAuthToken(user *models.User) (tokenString string, expiresIn int, err error) {
 	claims := &models.Claims{
 		UserID: user.ID,
 		Email:  user.Email,
@@ -135,12 +135,12 @@ func (s *userService) generateAuthToken(user *models.User) (string, int, error) 
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	tokenString, err := token.SignedString(s.jwtKey)
+	tokenString, err = token.SignedString(s.jwtKey)
 	if err != nil {
 		return "", 0, appError.InternalError("Failed to generate authentication token").WithError(err)
 	}
 
-	expiresIn := int(time.Until(claims.ExpiresAt.Time).Seconds())
+	expiresIn = int(time.Until(claims.ExpiresAt.Time).Seconds())
 	return tokenString, expiresIn, nil
 }
 
