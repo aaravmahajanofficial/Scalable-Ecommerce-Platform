@@ -111,7 +111,7 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 		return nil, fmt.Errorf("failed to unmarshal shipping address: %w", err)
 	}
 
-	items, err := r.getOrderItemsByID(dbCtx, id)
+	items, err := r.getOrderItems(dbCtx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (r *orderRepository) GetOrderByID(ctx context.Context, id uuid.UUID) (*mode
 	return order, nil
 }
 
-func (r *orderRepository) getOrderItemsByID(ctx context.Context, orderID uuid.UUID) ([]models.OrderItem, error) {
+func (r *orderRepository) getOrderItems(ctx context.Context, orderID uuid.UUID) ([]models.OrderItem, error) {
 	query := `
 		SELECT id, product_id, quantity, unit_price, created_at
 		FROM order_items
