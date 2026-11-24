@@ -271,8 +271,58 @@ func (r *orderRepository) ListOrdersByCustomer(ctx context.Context, customerID u
 		return nil, 0, err
 	}
 
-	if err := r.populateOrderItems(dbCtx, orders); err != nil {
-		return nil, 0, err
+	if len(orders) == 0 {
+		return orders, total, nil
+	}
+
+	// now for the orders we have to fetch the respective order items in a single query
+	orderIDs := make([]uuid.UUID, len(orders))
+	for i, order := range orders {
+		orderIDs[i] = order.ID
+	}
+
+	query = `
+		SELECT id, order_id, product_id, quantity, unit_price, created_at
+		FROM order_items
+		WHERE order_id = ANY($1)
+	`
+
+	itemsRows, err := r.DB.QueryContext(dbCtx, query, pq.Array(orderIDs))
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get the order items: %w", err)
+	}
+
+	itemsByOrder := make(map[uuid.UUID][]models.OrderItem)
+
+	for itemsRows.Next() {
+		var item models.OrderItem
+
+		scanErr := itemsRows.Scan(&item.ID, &item.OrderID, &item.ProductID, &item.Quantity, &item.UnitPrice, &item.CreatedAt)
+		if scanErr != nil {
+			closeErr := itemsRows.Close()
+			if closeErr != nil {
+				return nil, 0, fmt.Errorf("scan error: %v, and failed to close itemsRows: %v", scanErr, closeErr)
+			}
+			return nil, 0, fmt.Errorf("failed to scan order item: %w", scanErr)
+		}
+
+		itemsByOrder[item.OrderID] = append(itemsByOrder[item.OrderID], item)
+	}
+
+	if err := itemsRows.Close(); err != nil {
+		return nil, 0, fmt.Errorf("failed to close itemsRows: %v", err)
+	}
+
+	if err := itemsRows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error during order item rows iteration: %w", err)
+	}
+
+	for i, order := range orders {
+		orders[i].Items = itemsByOrder[order.ID]
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error during order rows iteration: %w", err)
 	}
 
 	return orders, total, nil
