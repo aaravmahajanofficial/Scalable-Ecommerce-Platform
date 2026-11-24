@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
@@ -86,4 +88,85 @@ func TestHandler(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), "http_requests_total")
+}
+
+func TestResponseWriter(t *testing.T) {
+	rec := httptest.NewRecorder()
+	rw := newResponseWriter(rec)
+
+	assert.Equal(t, http.StatusOK, rw.statusCode)
+
+	rw.WriteHeader(http.StatusCreated)
+	assert.Equal(t, http.StatusCreated, rw.statusCode)
+	assert.Equal(t, http.StatusCreated, rec.Code)
+}
+
+func TestMiddleware_RecordsMetrics(t *testing.T) {
+
+	httpRequestsTotal.Reset()
+	httpRequestsDuration.Reset()
+
+	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test-path", http.NoBody)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusAccepted, rec.Code)
+
+	counter, err := httpRequestsTotal.GetMetricWithLabelValues("202", "GET", "/test-path")
+	assert.NoError(t, err)
+	val := testutil.ToFloat64(counter)
+	assert.Equal(t, float64(1), val)
+
+	_, err = httpRequestsDuration.GetMetricWithLabelValues("GET", "/test-path")
+	assert.NoError(t, err)
+
+	count := testutil.CollectAndCount(httpRequestsDuration)
+	assert.Greater(t, count, 0)
+}
+
+func TestMiddleware_PathPatterns(t *testing.T) {
+	httpRequestsTotal.Reset()
+
+	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/users/123", http.NoBody)
+
+	req.SetPathValue("...", "123")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	counter, err := httpRequestsTotal.GetMetricWithLabelValues("200", "GET", "/api/v1/users/{...}")
+	assert.NoError(t, err)
+	val := testutil.ToFloat64(counter)
+	assert.Equal(t, float64(1), val)
+}
+
+func TestMiddleware_InFlight(t *testing.T) {
+
+	initialVal := testutil.ToFloat64(httpRequestsInFlight)
+
+	var valInsideHandler float64
+
+	handler := Middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		valInsideHandler = testutil.ToFloat64(httpRequestsInFlight)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/in-flight", http.NoBody)
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, req)
+
+	assert.Equal(t, initialVal+1, valInsideHandler)
+
+	finalVal := testutil.ToFloat64(httpRequestsInFlight)
+	assert.Equal(t, initialVal, finalVal)
 }
