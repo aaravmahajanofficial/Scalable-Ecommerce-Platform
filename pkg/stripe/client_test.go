@@ -2,8 +2,12 @@ package stripe
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
 
@@ -284,7 +288,7 @@ func TestVerifyWebhookSignature(t *testing.T) {
 
 	t.Run("valid payload and signature", func(t *testing.T) {
 		secret := "whsec_test_secret"
-		payload := []byte(fmt.Sprintf(`{"id": "evt_123", "object": "event", "type": "payment_intent.succeeded", "api_version": %q}`, stripe.APIVersion))
+		payload := []byte(fmt.Sprintf(`{"object": "event", "id": "evt_123", "object": "event", "type": "payment_intent.succeeded", "api_version": %q}`, stripe.APIVersion))
 		signedPayload := webhook.GenerateTestSignedPayload(&webhook.UnsignedPayload{
 			Payload:   payload,
 			Secret:    secret,
@@ -297,4 +301,193 @@ func TestVerifyWebhookSignature(t *testing.T) {
 		assert.Equal(t, "evt_123", event.ID)
 		assert.Equal(t, stripe.EventType("payment_intent.succeeded"), event.Type)
 	})
+}
+
+type mockBackend struct {
+	CallFn func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error
+}
+
+func (m *mockBackend) Call(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+	if m.CallFn != nil {
+		return m.CallFn(method, path, key, params, v)
+	}
+	return nil
+}
+
+func (m *mockBackend) CallStreaming(method, path, key string, params stripe.ParamsContainer, v stripe.StreamingLastResponseSetter) error {
+	return nil
+}
+
+func (m *mockBackend) CallRaw(method, path, key string, body []byte, params *stripe.Params, v stripe.LastResponseSetter) error {
+	return nil
+}
+
+func (m *mockBackend) CallMultipart(method, path, key, boundary string, body *bytes.Buffer, params *stripe.Params, v stripe.LastResponseSetter) error {
+	return nil
+}
+
+func (m *mockBackend) SetMaxNetworkRetries(maxNetworkRetries int64) {}
+
+func TestCreatePaymentIntent_PR172(t *testing.T) {
+	mb := &mockBackend{
+		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+			assert.Equal(t, "POST", method)
+			assert.Equal(t, "/v1/payment_intents", path)
+
+			pi := v.(*stripe.PaymentIntent)
+			pi.ID = "pi_123"
+			pi.Amount = 1000
+			pi.Currency = "usd"
+			return nil
+		},
+	}
+
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	stripe.SetBackend(stripe.APIBackend, mb)
+	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
+
+	client := NewStripeClient("sk_test_123", "whsec_123")
+	pi, err := client.CreatePaymentIntent(1000, "usd", "test desc", "cus_123")
+	require.NoError(t, err)
+	assert.Equal(t, "pi_123", pi.ID)
+	assert.Equal(t, int64(1000), pi.Amount)
+}
+
+func TestCreatePaymentMethod_PR172(t *testing.T) {
+	mb := &mockBackend{
+		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+			assert.Equal(t, "POST", method)
+			assert.Equal(t, "/v1/payment_methods", path)
+
+			pm := v.(*stripe.PaymentMethod)
+			pm.ID = "pm_123"
+			return nil
+		},
+	}
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	stripe.SetBackend(stripe.APIBackend, mb)
+	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
+
+	client := NewStripeClient("sk_test_123", "whsec_123")
+
+	pm, err := client.CreatePaymentMethod("4242", "12", "2030", "123")
+	require.NoError(t, err)
+	assert.Equal(t, "pm_123", pm.ID)
+
+	_, err = client.CreatePaymentMethod("4242", "abc", "2030", "123")
+	assert.Error(t, err)
+
+	_, err = client.CreatePaymentMethod("4242", "12", "abc", "123")
+	assert.Error(t, err)
+}
+
+func TestCreatePaymentMethodFromToken_PR172(t *testing.T) {
+	mb := &mockBackend{
+		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+			assert.Equal(t, "GET", method)
+			assert.Equal(t, "/v1/payment_methods/pm_123", path)
+
+			pm := v.(*stripe.PaymentMethod)
+			pm.ID = "pm_123"
+			return nil
+		},
+	}
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	stripe.SetBackend(stripe.APIBackend, mb)
+	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
+
+	client := NewStripeClient("sk_test_123", "whsec_123")
+
+	pm, err := client.CreatePaymentMethodFromToken("pm_123")
+	require.NoError(t, err)
+	assert.Equal(t, "pm_123", pm.ID)
+}
+
+func TestAttachPaymentMethodToIntent_PR172(t *testing.T) {
+	mb := &mockBackend{
+		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+			assert.Equal(t, "POST", method)
+			assert.Equal(t, "/v1/payment_intents/pi_123", path)
+
+			pi := v.(*stripe.PaymentIntent)
+			pi.ID = "pi_123"
+			return nil
+		},
+	}
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	stripe.SetBackend(stripe.APIBackend, mb)
+	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
+
+	client := NewStripeClient("sk_test_123", "whsec_123")
+
+	err := client.AttachPaymentMethodToIntent("pm_123", "pi_123")
+	require.NoError(t, err)
+}
+
+func TestConfirmPaymentIntent_PR172(t *testing.T) {
+	mb := &mockBackend{
+		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+			assert.Equal(t, "POST", method)
+			assert.Equal(t, "/v1/payment_intents/pi_123/confirm", path)
+
+			pi := v.(*stripe.PaymentIntent)
+			pi.ID = "pi_123"
+			return nil
+		},
+	}
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	stripe.SetBackend(stripe.APIBackend, mb)
+	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
+
+	client := NewStripeClient("sk_test_123", "whsec_123")
+
+	pi, err := client.ConfirmPaymentIntent("pi_123")
+	require.NoError(t, err)
+	assert.Equal(t, "pi_123", pi.ID)
+}
+
+func TestRefundPayment_PR172(t *testing.T) {
+	mb := &mockBackend{
+		CallFn: func(method, path, key string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
+			assert.Equal(t, "POST", method)
+			assert.Equal(t, "/v1/refunds", path)
+
+			r := v.(*stripe.Refund)
+			r.ID = "re_123"
+			return nil
+		},
+	}
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	stripe.SetBackend(stripe.APIBackend, mb)
+	defer stripe.SetBackend(stripe.APIBackend, originalBackend)
+
+	client := NewStripeClient("sk_test_123", "whsec_123")
+
+	r, err := client.RefundPayment("pi_123", 1000)
+	require.NoError(t, err)
+	assert.Equal(t, "re_123", r.ID)
+}
+
+func TestVerifyWebhookSignature_PR172(t *testing.T) {
+	client := NewStripeClient("sk_test_123", "whsec_123")
+
+	clientEmpty := NewStripeClient("sk_test_123", "")
+	_, err := clientEmpty.VerifyWebhookSignature([]byte("payload"), "sig")
+	assert.Error(t, err)
+	assert.Equal(t, "webhook secret not configured", err.Error())
+
+	_, err = client.VerifyWebhookSignature([]byte("payload"), "sig")
+	assert.Error(t, err)
+
+	payload := []byte(fmt.Sprintf(`{"id":"evt_123","object":"event","type":"payment_intent.succeeded","api_version":"%s"}`, stripe.APIVersion))
+	now := time.Now().Unix()
+	mac := hmac.New(sha256.New, []byte("whsec_123"))
+	mac.Write([]byte(fmt.Sprintf("%d.%s", now, payload)))
+	sig := hex.EncodeToString(mac.Sum(nil))
+
+	header := fmt.Sprintf("t=%d,v1=%s", now, sig)
+
+	evt, err := client.VerifyWebhookSignature(payload, header)
+	require.NoError(t, err)
+	assert.Equal(t, "evt_123", evt.ID)
 }
