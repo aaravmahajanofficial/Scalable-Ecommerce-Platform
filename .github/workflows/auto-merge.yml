@@ -5,18 +5,43 @@ on:
     workflows: ["CI"]
     types: [completed]
 
+permissions: {}
+
+concurrency:
+  group: auto-merge-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
 jobs:
   merge:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
+    name: Merge PR when CI is green
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Merge PRs for this commit
+      - name: Merge PR
         env:
           GH_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
           REPO: ${{ github.repository }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
         run: |
-          for pr in $(gh pr list --repo "$REPO" --state open --search "$SHA" --json number --jq '.[].number'); do
-            gh pr merge "$pr" --repo "$REPO" --squash \
-              || echo "::warning::#$pr not mergeable yet"
-          done
+          [ -n "$GH_TOKEN" ] || { echo "::error::AUTOUPDATE_PAT is not available"; exit 1; }
+
+          # Skip fork PRs
+          if [ "$HEAD_OWNER" != "${REPO%%/*}" ]; then
+            echo "Run is from a fork, skipping"
+            exit 0
+          fi
+
+          pr=$(gh pr list --repo "$REPO" --state open --head "$HEAD_BRANCH" --base main \
+            --json number,headRefOid \
+            --jq ".[] | select(.headRefOid == \"$HEAD_SHA\") | .number" | head -n1)
+
+          [ -n "$pr" ] || { echo "No open PR matches this run (branch moved or already merged)"; exit 0; }
+
+          echo "Attempting to merge #$pr"
+          gh pr merge "$pr" --repo "$REPO" --squash \
+            || echo "::warning::#$pr not mergeable yet (pending checks, conflicts, or missing review)"
