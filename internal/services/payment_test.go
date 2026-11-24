@@ -363,8 +363,7 @@ func TestProcessWebhook(t *testing.T) {
 func testProcessWebhookSuccess(
 	t *testing.T,
 	payload []byte,
-	signature string,
-	stripePaymentIntentID string,
+	signature, stripePaymentIntentID string,
 	eventSucceeded, eventFailed, eventRefunded *stripe.Event,
 ) {
 	t.Helper()
@@ -431,8 +430,7 @@ func testProcessWebhookSuccess(
 func testProcessWebhookFailure(
 	t *testing.T,
 	payload []byte,
-	signature string,
-	stripePaymentIntentID string,
+	signature, stripePaymentIntentID string,
 	eventSucceeded, eventFailed, eventRefunded *stripe.Event,
 ) {
 	t.Helper()
