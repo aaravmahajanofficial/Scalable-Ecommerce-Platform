@@ -98,3 +98,53 @@ func TestError_AppErrorWithDetails(t *testing.T) {
 	require.Len(t, resp.Error.Details, 1)
 	assert.Equal(t, "email is required", resp.Error.Details[0])
 }
+
+func TestSuccess_PR184(t *testing.T) {
+	t.Run("success response with data", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		data := map[string]string{"key": "value"}
+		expectedStatusCode := http.StatusOK
+
+		response.Success(recorder, expectedStatusCode, data)
+
+		assert.Equal(t, expectedStatusCode, recorder.Code)
+		assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+
+		var resp response.APIResponse
+		err := json.Unmarshal(recorder.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.True(t, resp.Success)
+
+		dataMap, ok := resp.Data.(map[string]any)
+		assert.True(t, ok)
+		assert.Equal(t, "value", dataMap["key"])
+	})
+
+	t.Run("success response with nil data", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		expectedStatusCode := http.StatusCreated
+
+		response.Success(recorder, expectedStatusCode, nil)
+
+		assert.Equal(t, expectedStatusCode, recorder.Code)
+		assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+
+		var resp response.APIResponse
+		err := json.Unmarshal(recorder.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.True(t, resp.Success)
+		assert.Nil(t, resp.Data)
+	})
+
+	t.Run("success response with unmarshalable data triggers log error", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		expectedStatusCode := http.StatusOK
+
+		unmarshalableData := make(chan int)
+
+		response.Success(recorder, expectedStatusCode, unmarshalableData)
+
+		assert.Equal(t, expectedStatusCode, recorder.Code)
+		assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+	})
+}
