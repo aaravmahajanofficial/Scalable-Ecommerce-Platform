@@ -24,13 +24,12 @@ func setupPaymentServiceTest(t *testing.T) (service.PaymentService, *repoMocks.M
 	return paymentService, mockRepo, mockStripeClient
 }
 
-func assertAppError(t *testing.T, err error, expectedCode string) *appErrors.AppError {
+func assertAppError(t *testing.T, err error, expectedCode string) {
 	t.Helper()
 	assert.Error(t, err)
 	appErr, ok := appErrors.IsAppError(err)
 	assert.True(t, ok)
 	assert.Equal(t, expectedCode, appErr.Code)
-	return appErr
 }
 
 func TestNewPaymentService(t *testing.T) {
@@ -332,8 +331,6 @@ func TestListPaymentsByCustomer(t *testing.T) {
 }
 
 func TestProcessWebhook(t *testing.T) {
-	ctx := t.Context()
-
 	payload := []byte(`{"id": "evt_123", "type": "payment_intent.succeeded", "data": {"object": {"id": "pi_abc"}}}`)
 	signature := "whsec_sig"
 	stripePaymentIntentID := "pi_abc"
@@ -355,200 +352,191 @@ func TestProcessWebhook(t *testing.T) {
 	}
 
 	t.Run("Success Scenarios", func(t *testing.T) {
-		successTests := []struct {
-			name           string
-			payload        []byte
-			event          stripe.Event
-			expectedStatus models.PaymentStatus
-			updateCalled   bool
-		}{
-			{
-				name:           "payment_intent.succeeded",
-				payload:        payload,
-				event:          eventSucceeded,
-				expectedStatus: models.PaymentStatusSucceeded,
-				updateCalled:   true,
-			},
-			{
-				name:           "payment_intent.payment_failed",
-				payload:        []byte(`{"id": "evt_456", "type": "payment_intent.payment_failed"}`),
-				event:          eventFailed,
-				expectedStatus: models.PaymentStatusFailed,
-				updateCalled:   true,
-			},
-			{
-				name:           "charge.refunded",
-				payload:        []byte(`{"id": "evt_789", "type": "charge.refunded"}`),
-				event:          eventRefunded,
-				expectedStatus: models.PaymentStatusRefunded,
-				updateCalled:   true,
-			},
-			{
-				name:    "Unhandled Event Type",
-				payload: []byte(`{"id": "evt_000", "type": "customer.created"}`),
-				event: stripe.Event{
-					ID:   "evt_000",
-					Type: "customer.created",
-					Data: &stripe.EventData{Object: map[string]any{"id": "cus_123"}},
-				},
-				updateCalled: false,
-			},
-		}
-
-		for _, tt := range successTests {
-			t.Run(tt.name, func(t *testing.T) {
-				paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
-				mockStripeClient.On("VerifyWebhookSignature", tt.payload, signature).Return(tt.event, nil).Once()
-				if tt.updateCalled {
-					mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, tt.expectedStatus).Return(nil).Once()
-				}
-
-				event, err := paymentService.ProcessWebhook(ctx, tt.payload, signature)
-
-				assert.NoError(t, err)
-				assert.Equal(t, tt.event.ID, event.ID)
-				mockRepo.AssertExpectations(t)
-				mockStripeClient.AssertExpectations(t)
-			})
-		}
+		testProcessWebhookSuccess(t, payload, signature, stripePaymentIntentID, &eventSucceeded, &eventFailed, &eventRefunded)
 	})
 
 	t.Run("Failure Scenarios", func(t *testing.T) {
-		verifyErr := errors.New("invalid signature")
-		dbErr := errors.New("db update failed")
-
-		failureTests := []struct {
-			name         string
-			payload      []byte
-			event        stripe.Event
-			verifyErr    error
-			expectUpdate bool
-			updateStatus models.PaymentStatus
-			updateErr    error
-			expectedCode string
-			errorContains string
-		}{
-			{
-				name:         "VerifyWebhookSignature Fails",
-				payload:      payload,
-				event:        stripe.Event{},
-				verifyErr:    verifyErr,
-				expectedCode: appErrors.ErrCodeThirdPartyError,
-			},
-			{
-				name:    "Missing Payment Intent ID (Succeeded)",
-				payload: []byte(`{"id": "evt_bad", "type": "payment_intent.succeeded"}`),
-				event: stripe.Event{
-					ID:   "evt_bad",
-					Type: "payment_intent.succeeded",
-					Data: &stripe.EventData{Object: map[string]any{"amount": 1000}},
-				},
-				expectedCode:  appErrors.ErrCodeInternal,
-				errorContains: "Payment intent ID not found",
-			},
-			{
-				name:    "Non-String Payment Intent ID (Succeeded)",
-				payload: []byte(`{"id": "evt_non_string", "type": "payment_intent.succeeded"}`),
-				event: stripe.Event{
-					ID:   "evt_non_string",
-					Type: "payment_intent.succeeded",
-					Data: &stripe.EventData{Object: map[string]any{"id": 12345}},
-				},
-				expectedCode:  appErrors.ErrCodeInternal,
-				errorContains: "Payment intent ID is not a string",
-			},
-			{
-				name:    "Empty String Payment Intent ID (Succeeded)",
-				payload: []byte(`{"id": "evt_empty_string", "type": "payment_intent.succeeded"}`),
-				event: stripe.Event{
-					ID:   "evt_empty_string",
-					Type: "payment_intent.succeeded",
-					Data: &stripe.EventData{Object: map[string]any{"id": ""}},
-				},
-				expectedCode:  appErrors.ErrCodeThirdPartyError,
-				errorContains: "Missing payment intent ID in webhook",
-			},
-			{
-				name:         "UpdatePaymentStatus Fails (Succeeded)",
-				payload:      payload,
-				event:        eventSucceeded,
-				expectUpdate: true,
-				updateStatus: models.PaymentStatusSucceeded,
-				updateErr:    dbErr,
-				expectedCode: appErrors.ErrCodeDatabaseError,
-			},
-			{
-				name:    "Missing Payment Intent ID (Failed)",
-				payload: []byte(`{"id": "evt_bad_fail", "type": "payment_intent.payment_failed"}`),
-				event: stripe.Event{
-					ID:   "evt_bad_fail",
-					Type: "payment_intent.payment_failed",
-					Data: &stripe.EventData{Object: map[string]any{"reason": "card_declined"}},
-				},
-				expectedCode:  appErrors.ErrCodeInternal,
-				errorContains: "Payment intent ID not found",
-			},
-			{
-				name:         "UpdatePaymentStatus Fails (Failed)",
-				payload:      []byte(`{"id": "evt_456", "type": "payment_intent.payment_failed"}`),
-				event:        eventFailed,
-				expectUpdate: true,
-				updateStatus: models.PaymentStatusFailed,
-				updateErr:    dbErr,
-				expectedCode: appErrors.ErrCodeDatabaseError,
-			},
-			{
-				name:    "Missing Payment Intent ID (Refunded)",
-				payload: []byte(`{"id": "evt_bad_refund", "type": "charge.refunded"}`),
-				event: stripe.Event{
-					ID:   "evt_bad_refund",
-					Type: "charge.refunded",
-					Data: &stripe.EventData{Object: map[string]any{"id": "ch_xyz"}},
-				},
-				expectedCode:  appErrors.ErrCodeThirdPartyError,
-				errorContains: "Missing payment intent ID",
-			},
-			{
-				name:         "UpdatePaymentStatus Fails (Refunded)",
-				payload:      []byte(`{"id": "evt_789", "type": "charge.refunded"}`),
-				event:        eventRefunded,
-				expectUpdate: true,
-				updateStatus: models.PaymentStatusRefunded,
-				updateErr:    dbErr,
-				expectedCode: appErrors.ErrCodeDatabaseError,
-			},
-		}
-
-		for _, tt := range failureTests {
-			t.Run(tt.name, func(t *testing.T) {
-				paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
-				mockStripeClient.On("VerifyWebhookSignature", tt.payload, signature).Return(tt.event, tt.verifyErr).Once()
-				if tt.expectUpdate {
-					mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, tt.updateStatus).Return(tt.updateErr).Once()
-				}
-
-				event, err := paymentService.ProcessWebhook(ctx, tt.payload, signature)
-
-				assert.Equal(t, tt.event.ID, event.ID)
-				_ = assertAppError(t, err, tt.expectedCode)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-				if tt.verifyErr != nil {
-					assert.ErrorIs(t, err, tt.verifyErr)
-				}
-				if tt.updateErr != nil {
-					assert.ErrorIs(t, err, tt.updateErr)
-				}
-
-				if !tt.expectUpdate {
-					mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
-				}
-				mockRepo.AssertExpectations(t)
-				mockStripeClient.AssertExpectations(t)
-			})
-		}
+		testProcessWebhookFailure(t, payload, signature, stripePaymentIntentID, &eventSucceeded, &eventFailed, &eventRefunded)
 	})
+}
+
+func testProcessWebhookSuccess(
+	t *testing.T,
+	payload []byte,
+	signature string,
+	stripePaymentIntentID string,
+	eventSucceeded, eventFailed, eventRefunded *stripe.Event,
+) {
+	t.Helper()
+	ctx := t.Context()
+	successTests := []struct {
+		name           string
+		payload        []byte
+		event          stripe.Event
+		expectedStatus models.PaymentStatus
+		updateCalled   bool
+	}{
+		{
+			name:           "payment_intent.succeeded",
+			payload:        payload,
+			event:          *eventSucceeded,
+			expectedStatus: models.PaymentStatusSucceeded,
+			updateCalled:   true,
+		},
+		{
+			name:           "payment_intent.payment_failed",
+			payload:        []byte(`{"id": "evt_456", "type": "payment_intent.payment_failed"}`),
+			event:          *eventFailed,
+			expectedStatus: models.PaymentStatusFailed,
+			updateCalled:   true,
+		},
+		{
+			name:           "charge.refunded",
+			payload:        []byte(`{"id": "evt_789", "type": "charge.refunded"}`),
+			event:          *eventRefunded,
+			expectedStatus: models.PaymentStatusRefunded,
+			updateCalled:   true,
+		},
+		{
+			name:    "Unhandled Event Type",
+			payload: []byte(`{"id": "evt_000", "type": "customer.created"}`),
+			event: stripe.Event{
+				ID:   "evt_000",
+				Type: "customer.created",
+				Data: &stripe.EventData{Object: map[string]any{"id": "cus_123"}},
+			},
+			updateCalled: false,
+		},
+	}
+
+	for i := range successTests {
+		tt := &successTests[i]
+		t.Run(tt.name, func(t *testing.T) {
+			paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
+			mockStripeClient.On("VerifyWebhookSignature", tt.payload, signature).Return(tt.event, nil).Once()
+			if tt.updateCalled {
+				mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, tt.expectedStatus).Return(nil).Once()
+			}
+
+			event, err := paymentService.ProcessWebhook(ctx, tt.payload, signature)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.event.ID, event.ID)
+			mockRepo.AssertExpectations(t)
+			mockStripeClient.AssertExpectations(t)
+		})
+	}
+}
+
+func testProcessWebhookFailure(
+	t *testing.T,
+	payload []byte,
+	signature string,
+	stripePaymentIntentID string,
+	eventSucceeded, eventFailed, eventRefunded *stripe.Event,
+) {
+	t.Helper()
+	verifyErr := errors.New("invalid signature")
+	dbErr := errors.New("db update failed")
+
+	failureTests := []webhookFailureCase{
+		{
+			name:         "VerifyWebhookSignature Fails",
+			payload:      payload,
+			event:        stripe.Event{},
+			verifyErr:    verifyErr,
+			expectedCode: appErrors.ErrCodeThirdPartyError,
+		},
+		{
+			name:    "Missing Payment Intent ID (Succeeded)",
+			payload: []byte(`{"id": "evt_bad", "type": "payment_intent.succeeded"}`),
+			event: stripe.Event{
+				ID:   "evt_bad",
+				Type: "payment_intent.succeeded",
+				Data: &stripe.EventData{Object: map[string]any{"amount": 1000}},
+			},
+			expectedCode:  appErrors.ErrCodeInternal,
+			errorContains: "Payment intent ID not found",
+		},
+		{
+			name:    "Non-String Payment Intent ID (Succeeded)",
+			payload: []byte(`{"id": "evt_non_string", "type": "payment_intent.succeeded"}`),
+			event: stripe.Event{
+				ID:   "evt_non_string",
+				Type: "payment_intent.succeeded",
+				Data: &stripe.EventData{Object: map[string]any{"id": 12345}},
+			},
+			expectedCode:  appErrors.ErrCodeInternal,
+			errorContains: "Payment intent ID is not a string",
+		},
+		{
+			name:    "Empty String Payment Intent ID (Succeeded)",
+			payload: []byte(`{"id": "evt_empty_string", "type": "payment_intent.succeeded"}`),
+			event: stripe.Event{
+				ID:   "evt_empty_string",
+				Type: "payment_intent.succeeded",
+				Data: &stripe.EventData{Object: map[string]any{"id": ""}},
+			},
+			expectedCode:  appErrors.ErrCodeThirdPartyError,
+			errorContains: "Missing payment intent ID in webhook",
+		},
+		{
+			name:         "UpdatePaymentStatus Fails (Succeeded)",
+			payload:      payload,
+			event:        *eventSucceeded,
+			expectUpdate: true,
+			updateStatus: models.PaymentStatusSucceeded,
+			updateErr:    dbErr,
+			expectedCode: appErrors.ErrCodeDatabaseError,
+		},
+		{
+			name:    "Missing Payment Intent ID (Failed)",
+			payload: []byte(`{"id": "evt_bad_fail", "type": "payment_intent.payment_failed"}`),
+			event: stripe.Event{
+				ID:   "evt_bad_fail",
+				Type: "payment_intent.payment_failed",
+				Data: &stripe.EventData{Object: map[string]any{"reason": "card_declined"}},
+			},
+			expectedCode:  appErrors.ErrCodeInternal,
+			errorContains: "Payment intent ID not found",
+		},
+		{
+			name:         "UpdatePaymentStatus Fails (Failed)",
+			payload:      []byte(`{"id": "evt_456", "type": "payment_intent.payment_failed"}`),
+			event:        *eventFailed,
+			expectUpdate: true,
+			updateStatus: models.PaymentStatusFailed,
+			updateErr:    dbErr,
+			expectedCode: appErrors.ErrCodeDatabaseError,
+		},
+		{
+			name:    "Missing Payment Intent ID (Refunded)",
+			payload: []byte(`{"id": "evt_bad_refund", "type": "charge.refunded"}`),
+			event: stripe.Event{
+				ID:   "evt_bad_refund",
+				Type: "charge.refunded",
+				Data: &stripe.EventData{Object: map[string]any{"id": "ch_xyz"}},
+			},
+			expectedCode:  appErrors.ErrCodeThirdPartyError,
+			errorContains: "Missing payment intent ID",
+		},
+		{
+			name:         "UpdatePaymentStatus Fails (Refunded)",
+			payload:      []byte(`{"id": "evt_789", "type": "charge.refunded"}`),
+			event:        *eventRefunded,
+			expectUpdate: true,
+			updateStatus: models.PaymentStatusRefunded,
+			updateErr:    dbErr,
+			expectedCode: appErrors.ErrCodeDatabaseError,
+		},
+	}
+
+	for i := range failureTests {
+		tc := &failureTests[i]
+		t.Run(tc.name, func(t *testing.T) {
+			runWebhookFailureCase(t, tc, signature, stripePaymentIntentID)
+		})
+	}
 }
 
 func TestExtractPaymentIntentID(t *testing.T) {
@@ -588,4 +576,46 @@ func TestExtractPaymentIntentID(t *testing.T) {
 		assert.Equal(t, appErrors.ErrCodeInternal, appErr.Code)
 		assert.Contains(t, err.Error(), "Payment intent ID is not a string in Stripe response")
 	})
+}
+
+type webhookFailureCase struct {
+	name          string
+	payload       []byte
+	event         stripe.Event
+	verifyErr     error
+	expectUpdate  bool
+	updateStatus  models.PaymentStatus
+	updateErr     error
+	expectedCode  string
+	errorContains string
+}
+
+func runWebhookFailureCase(t *testing.T, tc *webhookFailureCase, signature, stripePaymentIntentID string) {
+	t.Helper()
+	ctx := t.Context()
+
+	paymentService, mockRepo, mockStripeClient := setupPaymentServiceTest(t)
+	mockStripeClient.On("VerifyWebhookSignature", tc.payload, signature).Return(tc.event, tc.verifyErr).Once()
+	if tc.expectUpdate {
+		mockRepo.On("UpdatePaymentStatus", ctx, stripePaymentIntentID, tc.updateStatus).Return(tc.updateErr).Once()
+	}
+
+	event, err := paymentService.ProcessWebhook(ctx, tc.payload, signature)
+
+	assert.Equal(t, tc.event.ID, event.ID)
+	assertAppError(t, err, tc.expectedCode)
+	if tc.errorContains != "" {
+		assert.Contains(t, err.Error(), tc.errorContains)
+	}
+	if tc.verifyErr != nil {
+		assert.ErrorIs(t, err, tc.verifyErr)
+	}
+	if tc.updateErr != nil {
+		assert.ErrorIs(t, err, tc.updateErr)
+	}
+	if !tc.expectUpdate {
+		mockRepo.AssertNotCalled(t, "UpdatePaymentStatus")
+	}
+	mockRepo.AssertExpectations(t)
+	mockStripeClient.AssertExpectations(t)
 }
