@@ -1,53 +1,22 @@
-name: Enable Auto Merge
+name: Auto Merge
 
 on:
-  pull_request:
-    types: [opened, reopened, ready_for_review]
-
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: Pull request number (leave empty to process all open PRs)
-        required: false
-        type: string
-
-permissions: {}
-
-concurrency:
-  group: auto-merge-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
-  cancel-in-progress: false
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
 jobs:
-  enable-auto-merge:
-    name: Enable auto-merge
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.draft == false &&
-       github.event.pull_request.head.repo.full_name == github.repository)
+  merge:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-      pull-requests: write
-
     steps:
-      - name: Enable auto-merge (squash)
+      - name: Merge PRs for this commit
         env:
           GH_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if [ -n "$PR_NUMBER" ]; then
-            prs="$PR_NUMBER"
-          else
-            prs=$(gh pr list --repo "$REPO" --state open --base main \
-              --search "draft:false" \
-              --json number,isCrossRepository \
-              --jq '.[] | select(.isCrossRepository == false) | .number')
-          fi
-
-          for pr in $prs; do
-            echo "Enabling auto-merge on #$pr"
-            gh pr merge "$pr" --repo "$REPO" --auto --squash \
-              || echo "::warning::Could not enable auto-merge on #$pr"
+          for pr in $(gh pr list --repo "$REPO" --state open --search "$SHA" --json number --jq '.[].number'); do
+            gh pr merge "$pr" --repo "$REPO" --squash \
+              || echo "::warning::#$pr not mergeable yet"
           done
