@@ -28,7 +28,6 @@ type Endpoint struct {
 
 func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Handler, error) {
 	h, err := health.New(
-
 		health.WithComponent(health.Component{
 			Name:    cfg.OTel.ServiceName,
 			Version: "1.0.0",
@@ -58,7 +57,7 @@ func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Han
 				Timeout:   5 * time.Second,
 				SkipOnErr: false,
 				Check: func(ctx context.Context) error {
-					return checkStripeHealth(ctx, healthEndpoint.StripeClient)
+					return checkStripeHealth(ctx, healthEndpoint)
 				},
 			},
 		),
@@ -70,8 +69,8 @@ func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Han
 	return h.Handler(), nil
 }
 
-func checkStripeHealth(ctx context.Context, client stripeClient.Client) error {
-	if client == nil {
+func checkStripeHealth(ctx context.Context, endpoint *Endpoint) error {
+	if endpoint == nil || endpoint.StripeClient == nil {
 		return errors.New("stripe client is not initialized")
 	}
 
@@ -84,15 +83,15 @@ func checkStripeHealth(ctx context.Context, client stripeClient.Client) error {
 		},
 	}
 	_, err := balance.Get(params)
-	if err == nil {
-		return nil
+	if err != nil {
+		if ctxErr := reqCtx.Err(); errors.Is(ctxErr, context.DeadlineExceeded) {
+			return fmt.Errorf("stripe API call timed out: %w", ctxErr)
+		}
+
+		return fmt.Errorf("failed to connect to stripe: %w", err)
 	}
 
-	if ctxErr := reqCtx.Err(); errors.Is(ctxErr, context.DeadlineExceeded) {
-		return fmt.Errorf("stripe API call timed out: %w", ctxErr)
-	}
-
-	return fmt.Errorf("failed to connect to stripe: %w", err)
+	return nil
 }
 
 func NewLivenessHandler() http.HandlerFunc {
