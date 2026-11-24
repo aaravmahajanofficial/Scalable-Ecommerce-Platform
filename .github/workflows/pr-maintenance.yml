@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -14,20 +16,68 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  autoupdate:
-    name: Update PR branches
+  update-next-pr:
+    name: Update Next Eligible PR (Merge Queue)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Automatically update PRs
-        uses: docker://chinthakagodawita/autoupdate-action:v1
+      - name: Update one behind-main PR and ensure auto-merge is enabled
         env:
-          GITHUB_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
-          MERGE_CONFLICT_ACTION: "ignore"
+          GH_TOKEN: ${{ secrets.AUTOUPDATE_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          [ -n "$GH_TOKEN" ] || { echo "::error::AUTOUPDATE_PAT is not configured"; exit 1; }
+
+          # List open non-draft PRs targeting main (oldest first)
+          prs=$(gh pr list --repo "$REPO" --state open --base main --limit 100             --json number,isDraft,mergeable,mergeStateStatus,headRefName,headRepositoryOwner             --jq '[.[] | select(.isDraft == false and .headRepositoryOwner.login == "'"${REPO%%/*}"'")] | sort_by(.number) | .[].number')
+
+          for pr in $prs; do
+            info=$(gh pr view "$pr" --repo "$REPO" --json mergeable,mergeStateStatus,statusCheckRollup,autoMergeRequest)
+            mergeable=$(echo "$info" | jq -r '.mergeable')
+            state=$(echo "$info" | jq -r '.mergeStateStatus')
+
+            # Skip conflicting PRs
+            if [ "$mergeable" = "CONFLICTING" ] || [ "$state" = "DIRTY" ]; then
+              echo "Skipping PR #$pr (has merge conflicts)"
+              continue
+            fi
+
+            # Skip PRs that already have a failing check on their current commit (avoid infinite retry loops)
+            has_failure=$(echo "$info" | jq '[.statusCheckRollup[]? | select(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT")] | length')
+            if [ "$has_failure" -gt 0 ] && [ "$state" != "BEHIND" ]; then
+              echo "Skipping PR #$pr ($has_failure failing check(s) on current head)"
+              continue
+            fi
+
+            # Ensure native auto-merge is enabled on this PR
+            if [ "$(echo "$info" | jq -r '.autoMergeRequest != null')" != "true" ]; then
+              gh pr merge "$pr" --repo "$REPO" --auto --squash 2>/dev/null || true
+            fi
+
+            # If already CLEAN (up to date & all checks green), merge immediately and exit
+            if [ "$state" = "CLEAN" ]; then
+              echo "PR #$pr is CLEAN — merging immediately"
+              gh pr merge "$pr" --repo "$REPO" --squash && exit 0
+            fi
+
+            # If BEHIND main, update THIS ONE PR so CI runs cleanly without a thundering herd
+            if [ "$state" = "BEHIND" ] || [ "$mergeable" = "MERGEABLE" ]; then
+              echo "Updating PR #$pr with latest main..."
+              if gh api -X PUT "repos/$REPO/pulls/$pr/update-branch" --silent; then
+                echo "Updated PR #$pr; waiting for CI & auto-merge to complete"
+                exit 0
+              else
+                echo "::warning::Failed to update PR #$pr, trying next eligible PR"
+              fi
+            fi
+          done
+
+          echo "No eligible behind-main PRs left to update."
 
   auto-comment-merge-conflicts:
     name: Comment on merge conflicts
-    needs: autoupdate
-    if: ${{ !cancelled() }}
+    needs: update-next-pr
+    if: ${{ !cancelled() && github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
