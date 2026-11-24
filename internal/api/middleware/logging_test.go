@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"net/http"
@@ -127,5 +128,111 @@ func TestLoggerFromContext(t *testing.T) {
 
 		logger := middleware.LoggerFromContext(ctx)
 		assert.Equal(t, slog.Default(), logger)
+	})
+}
+
+func TestLoggingMiddleware_PR210(t *testing.T) {
+	tests := []struct {
+		name         string
+		reqIDHeader  string
+		expectedCode int
+		expectedBody string
+	}{
+		{
+			name:         "Without X-Request-ID Header",
+			reqIDHeader:  "",
+			expectedCode: http.StatusCreated,
+			expectedBody: `{"success": true}`,
+		},
+		{
+			name:         "With X-Request-ID Header",
+			reqIDHeader:  "test-correlation-id-123",
+			expectedCode: http.StatusOK,
+			expectedBody: `{"success": true}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+
+			mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+				logger := middleware.LoggerFromContext(r.Context())
+				require.NotNil(t, logger, "Logger should be present in context")
+
+				reqID := w.Header().Get("X-Request-ID")
+				assert.NotEmpty(t, reqID, "X-Request-ID should be set in response header")
+
+				if tc.reqIDHeader != "" {
+					assert.Equal(t, tc.reqIDHeader, reqID, "X-Request-ID should match the provided header")
+				} else {
+
+					_, err := uuid.Parse(reqID)
+					assert.NoError(t, err, "Generated X-Request-ID should be a valid UUID")
+				}
+
+				w.WriteHeader(tc.expectedCode)
+				_, err := w.Write([]byte(tc.expectedBody))
+				require.NoError(t, err)
+			})
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", http.NoBody)
+			if tc.reqIDHeader != "" {
+				req.Header.Set("X-Request-ID", tc.reqIDHeader)
+			}
+
+			rr := httptest.NewRecorder()
+
+			// Create a buffer to capture logs if we want to ensure no panics during logging
+			var logBuf bytes.Buffer
+			handler := slog.NewJSONHandler(&logBuf, nil)
+			logger := slog.New(handler)
+
+			originalLogger := slog.Default()
+			slog.SetDefault(logger)
+			t.Cleanup(func() { slog.SetDefault(originalLogger) })
+
+			middlewareToTest := middleware.Logging(mockHandler)
+			middlewareToTest.ServeHTTP(rr, req)
+
+			assert.Equal(t, tc.expectedCode, rr.Code, "Unexpected status code")
+			assert.JSONEq(t, tc.expectedBody, rr.Body.String(), "Unexpected response body")
+
+			respReqID := rr.Header().Get("X-Request-ID")
+			assert.NotEmpty(t, respReqID, "X-Request-ID should be set in final response header")
+
+			if tc.reqIDHeader != "" {
+				assert.Equal(t, tc.reqIDHeader, respReqID, "Response X-Request-ID should match the one provided in request")
+			}
+
+			logOutput := logBuf.String()
+			assert.Contains(t, logOutput, "Incoming request", "Should log incoming request")
+			assert.Contains(t, logOutput, "Request Completed", "Should log completed request")
+			if tc.reqIDHeader != "" {
+				assert.Contains(t, logOutput, tc.reqIDHeader, "Logs should contain correlation_id")
+			}
+		})
+	}
+}
+
+func TestLoggerFromContext_PR210(t *testing.T) {
+	t.Run("Context Without Logger", func(t *testing.T) {
+		ctx := context.Background()
+		logger := middleware.LoggerFromContext(ctx)
+
+		assert.NotNil(t, logger, "Should return a logger even if not in context")
+		assert.Equal(t, slog.Default(), logger, "Should fall back to default logger")
+	})
+
+	t.Run("Context With Logger", func(t *testing.T) {
+		// Create a custom logger
+		var buf bytes.Buffer
+		customLogger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+		ctx := context.WithValue(context.Background(), middleware.LoggerKey, customLogger)
+		logger := middleware.LoggerFromContext(ctx)
+
+		assert.NotNil(t, logger, "Should return a logger")
+		assert.Equal(t, customLogger, logger, "Should return the logger stored in context")
 	})
 }
