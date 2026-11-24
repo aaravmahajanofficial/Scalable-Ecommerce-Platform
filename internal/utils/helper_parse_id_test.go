@@ -1,6 +1,7 @@
 package apputils
 
 import (
+	stderrors "errors"
 	"net/http"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 
 func TestParseID(t *testing.T) {
 	validUUIDStr := uuid.New().String()
-	validUUID, _ := uuid.Parse(validUUIDStr)
+	validUUID := uuid.MustParse(validUUIDStr)
 
 	tests := []struct {
 		name         string
@@ -36,7 +37,8 @@ func TestParseID(t *testing.T) {
 			expectedID:  uuid.Nil,
 			expectedErr: true,
 			errCodeCheck: func(err error) bool {
-				appErr, ok := err.(*errors.AppError)
+				var appErr *errors.AppError
+				ok := stderrors.As(err, &appErr)
 				return ok && appErr.Code == errors.ErrCodeBadRequest
 			},
 		},
@@ -47,7 +49,8 @@ func TestParseID(t *testing.T) {
 			expectedID:  uuid.Nil,
 			expectedErr: true,
 			errCodeCheck: func(err error) bool {
-				appErr, ok := err.(*errors.AppError)
+				var appErr *errors.AppError
+				ok := stderrors.As(err, &appErr)
 				return ok && appErr.Code == errors.ErrCodeBadRequest
 			},
 		},
@@ -55,7 +58,7 @@ func TestParseID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			req, err := http.NewRequest(http.MethodGet, "/", nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 			require.NoError(t, err)
 
 			req.SetPathValue(tt.paramName, tt.pathValue)
