@@ -11,6 +11,10 @@ permissions:
   pull-requests: write
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true 
+
 jobs:
   auto-comment-merge-conflicts:
     runs-on: ubuntu-latest
