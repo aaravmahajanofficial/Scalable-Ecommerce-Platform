@@ -34,9 +34,32 @@ func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Han
 		}),
 		health.WithSystemInfo(),
 		health.WithChecks(
-			newDatabaseCheck(cfg),
-			newRedisCheck(cfg),
-			newStripeCheck(healthEndpoint),
+			health.Config{
+				Name:      "database",
+				Timeout:   3 * time.Second,
+				SkipOnErr: false,
+				Check: postgres.New(postgres.Config{
+					DSN: cfg.Database.GetDSN(),
+				}),
+			},
+			health.Config{
+				Name:      "redis",
+				Timeout:   2 * time.Second,
+				SkipOnErr: false,
+				Check: healthRedis.New(
+					healthRedis.Config{
+						DSN: cfg.RedisConnect.GetDSN(),
+					},
+				),
+			},
+			health.Config{
+				Name:      "stripe",
+				Timeout:   5 * time.Second,
+				SkipOnErr: false,
+				Check: func(ctx context.Context) error {
+					return checkStripeHealth(ctx, healthEndpoint)
+				},
+			},
 		),
 	)
 	if err != nil {
@@ -46,43 +69,8 @@ func NewReadinessHandler(cfg *config.Config, healthEndpoint *Endpoint) (http.Han
 	return h.Handler(), nil
 }
 
-func newDatabaseCheck(cfg *config.Config) health.Config {
-	return health.Config{
-		Name:      "database",
-		Timeout:   3 * time.Second,
-		SkipOnErr: false,
-		Check: postgres.New(postgres.Config{
-			DSN: cfg.Database.GetDSN(),
-		}),
-	}
-}
-
-func newRedisCheck(cfg *config.Config) health.Config {
-	return health.Config{
-		Name:      "redis",
-		Timeout:   2 * time.Second,
-		SkipOnErr: false,
-		Check: healthRedis.New(
-			healthRedis.Config{
-				DSN: cfg.RedisConnect.GetDSN(),
-			},
-		),
-	}
-}
-
-func newStripeCheck(endpoint *Endpoint) health.Config {
-	return health.Config{
-		Name:      "stripe",
-		Timeout:   5 * time.Second,
-		SkipOnErr: false,
-		Check: func(ctx context.Context) error {
-			return checkStripeHealth(ctx, endpoint)
-		},
-	}
-}
-
 func checkStripeHealth(ctx context.Context, endpoint *Endpoint) error {
-	if endpoint.StripeClient == nil {
+	if endpoint == nil || endpoint.StripeClient == nil {
 		return errors.New("stripe client is not initialized")
 	}
 
