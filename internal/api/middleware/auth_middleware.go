@@ -43,7 +43,7 @@ func (m *AuthMiddleware) extractBearerToken(authHeader string, logger *slog.Logg
 	return tokenParts[1], nil
 }
 
-func (m *AuthMiddleware) validateJWTClaims(tokenString string, logger *slog.Logger) (*models.Claims, *appErrors.AppError) {
+func (m *AuthMiddleware) parseAndValidateToken(tokenString string, logger *slog.Logger) (*models.Claims, *appErrors.AppError) {
 	claims := &models.Claims{}
 
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
@@ -86,7 +86,7 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.HandlerFunc {
 			return
 		}
 
-		claims, validateErr := m.validateJWTClaims(tokenString, logger)
+		claims, validateErr := m.parseAndValidateToken(tokenString, logger)
 		if validateErr != nil {
 			response.Error(w, validateErr)
 			return
