@@ -65,11 +65,11 @@ func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username stri
 	key := "login_attempts:" + username
 	now := time.Now().Unix()
 
-	attempts, err := r.recordAttemptAndCount(ctx, key, now)
+	attempts, err := r.recordAttempt(ctx, key, now)
 	if err != nil {
 		logger.Error("Redis pipeline execution failed for rate limit", slog.String("key", key), slog.Any("error", err))
 
-		return false, 0, 0, err
+		return false, 0, 0, fmt.Errorf("redis pipeline error for rate limit check: %w", err)
 	}
 
 	remaining = int(r.cfg.RateConfig.MaxAttempts - attempts)
@@ -79,7 +79,7 @@ func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username stri
 		if err != nil {
 			logger.Error("Failed to get oldest attempt time for rate limit", slog.String("key", key), slog.Any("error", err))
 
-			return false, 0, retryAfter, err
+			return false, 0, int(r.cfg.RateConfig.WindowSize.Seconds()), fmt.Errorf("failed to get oldest attempt time: %w", err)
 		}
 
 		logger.Warn("Rate limit exceeded for user", slog.String("username", username), slog.Int64("attempts", attempts))
@@ -92,7 +92,7 @@ func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username stri
 	return true, remaining, 0, nil
 }
 
-func (r *redisRepository) recordAttemptAndCount(ctx context.Context, key string, now int64) (int64, error) {
+func (r *redisRepository) recordAttempt(ctx context.Context, key string, now int64) (int64, error) {
 	// This means only login attempts after 'this time' are counted.
 	windowStart := now - int64(r.cfg.RateConfig.WindowSize.Seconds())
 
@@ -113,7 +113,7 @@ func (r *redisRepository) recordAttemptAndCount(ctx context.Context, key string,
 
 	// execute the commands
 	if _, err := pipe.Exec(ctx); err != nil {
-		return 0, fmt.Errorf("redis pipeline error for rate limit check: %w", err)
+		return 0, err
 	}
 
 	return count.Val(), nil
@@ -126,10 +126,11 @@ func (r *redisRepository) calculateRetryAfter(ctx context.Context, key string, n
 
 	scores, err := oldestScoreCmd.Result()
 	if err != nil || len(scores) == 0 {
-		return int(r.cfg.RateConfig.WindowSize.Seconds()), fmt.Errorf("failed to get oldest attempt time: %w", err)
+		return 0, fmt.Errorf("failed to get oldest attempt time")
 	}
 
 	oldestTimestamp := int64(scores[0].Score)
+
 	retryAfter := max((oldestTimestamp+int64(r.cfg.RateConfig.WindowSize.Seconds()))-now, 0)
 
 	return int(retryAfter), nil
