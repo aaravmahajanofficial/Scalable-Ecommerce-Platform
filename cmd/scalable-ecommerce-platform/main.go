@@ -263,10 +263,15 @@ func initStorage(cfg *config.Config) (*repository.Repositories, func(), error) {
 	return repos, cleanup, nil
 }
 
-func startServer(cfg *config.Config, repos *repository.Repositories) {
-	jwtKey := []byte(cfg.Security.JWTKey)
+func initExternalClients(cfg *config.Config) (stripe.Client, sendgrid.EmailService) {
 	stripeClient := stripe.NewStripeClient(cfg.Stripe.APIKey, cfg.Stripe.WebhookSecret)
 	sendGridClient := sendgrid.NewEmailService(cfg.SendGrid.APIKey, cfg.SendGrid.FromEmail, cfg.SendGrid.FromName)
+	return stripeClient, sendGridClient
+}
+
+func startServer(cfg *config.Config, repos *repository.Repositories) {
+	jwtKey := []byte(cfg.Security.JWTKey)
+	stripeClient, sendGridClient := initExternalClients(cfg)
 	swaggerHost := getSwaggerHost(cfg)
 
 	router := setupRouter(cfg, repos, jwtKey, stripeClient, sendGridClient, swaggerHost)
