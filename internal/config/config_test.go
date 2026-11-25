@@ -125,7 +125,8 @@ cache:
 		configPath, _ := createTempConfigFile(t, validYAML)
 		t.Setenv("CONFIG_PATH", configPath)
 
-		cfg := MustLoad()
+		cfg, err := Load()
+		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "test", cfg.Env)
 		assert.Equal(t, ":8081", cfg.HTTPServer.Addr)
@@ -143,7 +144,8 @@ cache:
 
 		os.Args = []string{"cmd", "-config", configPath}
 
-		cfg := MustLoad()
+		cfg, err := Load()
+		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "test", cfg.Env)
 		assert.Equal(t, "dbhost", cfg.Database.Host)
@@ -157,7 +159,8 @@ cache:
 		cleanupDefault := createTempDefaultConfigFile(t, validYAML)
 		t.Cleanup(cleanupDefault)
 
-		cfg := MustLoad()
+		cfg, err := Load()
+		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "test", cfg.Env)
 		assert.Equal(t, "dbhost", cfg.Database.Host)
@@ -180,7 +183,8 @@ cache:
 		t.Setenv("REDIS_USER", "prodredisuser")
 		t.Setenv("REDIS_PASSWORD", "prodredispass")
 
-		cfg := MustLoad()
+		cfg, err := Load()
+		require.NoError(t, err)
 		require.NotNil(t, cfg)
 		assert.Equal(t, "production", cfg.Env)
 		assert.Equal(t, "prod-db", cfg.Database.Host)
