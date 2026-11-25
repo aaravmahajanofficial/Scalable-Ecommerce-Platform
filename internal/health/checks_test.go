@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -233,4 +234,17 @@ func TestNewReadinessHandler_Success(t *testing.T) {
 
 	// It'll likely be 503 because postgres fails to connect, but not because of Stripe.
 	assert.Contains(t, []int{http.StatusOK, http.StatusServiceUnavailable}, rr.Code)
+}
+
+func TestNewLivenessHandler_PR181(t *testing.T) {
+	handler := health.NewLivenessHandler()
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/liveness", http.NoBody)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "text/plain", rr.Header().Get("Content-Type"))
+	assert.True(t, strings.HasPrefix(rr.Body.String(), "Service is alive. Time: "))
 }
