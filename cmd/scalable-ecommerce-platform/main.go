@@ -283,7 +283,11 @@ func startServer(cfg *config.Config, repos *repository.Repositories) {
 func main() {
 	initLogger()
 
-	cfg := config.MustLoad()
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("Failed to load configuration", "error", err)
+		os.Exit(1)
+	}
 
 	tracerShutdown, err := initTracer(cfg)
 	if err != nil {
