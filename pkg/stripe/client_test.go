@@ -298,3 +298,24 @@ func TestVerifyWebhookSignature(t *testing.T) {
 		assert.Equal(t, stripe.EventType("payment_intent.succeeded"), event.Type)
 	})
 }
+
+func TestNewStripeClient_PR187(t *testing.T) {
+
+	originalKey := stripe.Key
+	defer func() {
+		stripe.Key = originalKey
+	}()
+
+	apiKey := "sk_test_12345"
+	webhookSecret := "whsec_12345"
+
+	client := NewStripeClient(apiKey, webhookSecret)
+
+	assert.Equal(t, apiKey, stripe.Key)
+
+	stripeClientImpl, ok := client.(*stripeClient)
+	assert.True(t, ok, "Expected client to be of type *stripeClient")
+	if ok {
+		assert.Equal(t, webhookSecret, stripeClientImpl.webhookSecret)
+	}
+}
