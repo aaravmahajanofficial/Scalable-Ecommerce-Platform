@@ -28,7 +28,7 @@ func NewOrderService(orderRepo repository.OrderRepository, cartRepo repository.C
 }
 
 func (s *orderService) validateAndGetProducts(ctx context.Context, cart *models.Cart) (map[uuid.UUID]*models.Product, error) {
-	var productIDs []uuid.UUID
+	productIDs := make([]uuid.UUID, 0, len(cart.Items))
 	for _, item := range cart.Items {
 		productIDs = append(productIDs, item.ProductID)
 	}
@@ -38,7 +38,7 @@ func (s *orderService) validateAndGetProducts(ctx context.Context, cart *models.
 		return nil, apperrors.DatabaseError("Failed to fetch products").WithError(err)
 	}
 
-	productMap := make(map[uuid.UUID]*models.Product)
+	productMap := make(map[uuid.UUID]*models.Product, len(products))
 	for _, p := range products {
 		productMap[p.ID] = p
 	}
@@ -75,21 +75,7 @@ func (s *orderService) updateInventory(ctx context.Context, cart *models.Cart, p
 	return nil
 }
 
-func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderRequest) (*models.Order, error) {
-	cart, err := s.cartRepo.GetCartByCustomerID(ctx, req.CustomerID)
-	if err != nil {
-		return nil, apperrors.NotFoundError("Cart not found").WithError(err)
-	}
-
-	if len(cart.Items) == 0 {
-		return nil, apperrors.BadRequestError("Cannot create order with empty cart")
-	}
-
-	productMap, err := s.validateAndGetProducts(ctx, cart)
-	if err != nil {
-		return nil, err
-	}
-
+func buildOrderFromRequest(req *models.CreateOrderRequest) *models.Order {
 	var grossTotal float64
 	for _, item := range req.Items {
 		grossTotal += float64(item.Quantity) * item.UnitPrice
@@ -106,19 +92,38 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 		UpdatedAt:       time.Now(),
 	}
 
-	var items []models.OrderItem
+	items := make([]models.OrderItem, 0, len(req.Items))
 	for _, item := range req.Items {
-		orderItem := models.OrderItem{
+		items = append(items, models.OrderItem{
 			ID:        uuid.New(),
 			OrderID:   order.ID,
 			ProductID: item.ProductID,
 			Quantity:  item.Quantity,
 			UnitPrice: item.UnitPrice,
 			CreatedAt: time.Now(),
-		}
-		items = append(items, orderItem)
+		})
 	}
 	order.Items = items
+
+	return order
+}
+
+func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderRequest) (*models.Order, error) {
+	cart, err := s.cartRepo.GetCartByCustomerID(ctx, req.CustomerID)
+	if err != nil {
+		return nil, apperrors.NotFoundError("Cart not found").WithError(err)
+	}
+
+	if len(cart.Items) == 0 {
+		return nil, apperrors.BadRequestError("Cannot create order with empty cart")
+	}
+
+	productMap, err := s.validateAndGetProducts(ctx, cart)
+	if err != nil {
+		return nil, err
+	}
+
+	order := buildOrderFromRequest(req)
 
 	if err := s.orderRepo.CreateOrder(ctx, order); err != nil {
 		return nil, apperrors.DatabaseError("Failed to create order").WithError(err)
