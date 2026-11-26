@@ -75,7 +75,7 @@ func (s *orderService) updateInventory(ctx context.Context, cart *models.Cart, p
 	return nil
 }
 
-func buildOrderFromRequest(req *models.CreateOrderRequest) *models.Order {
+func (s *orderService) buildOrder(req *models.CreateOrderRequest) *models.Order {
 	var grossTotal float64
 	for _, item := range req.Items {
 		grossTotal += float64(item.Quantity) * item.UnitPrice
@@ -123,7 +123,7 @@ func (s *orderService) CreateOrder(ctx context.Context, req *models.CreateOrderR
 		return nil, err
 	}
 
-	order := buildOrderFromRequest(req)
+	order := s.buildOrder(req)
 
 	if err := s.orderRepo.CreateOrder(ctx, order); err != nil {
 		return nil, apperrors.DatabaseError("Failed to create order").WithError(err)
