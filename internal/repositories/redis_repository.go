@@ -12,6 +12,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+var timeNow = time.Now
+
 type RateLimitRepository interface {
 	CheckLoginRateLimit(ctx context.Context, username string) (bool, int, int, error)
 }
@@ -63,7 +65,7 @@ func (r *redisRepository) CheckLoginRateLimit(ctx context.Context, username stri
 
 	// create a username key
 	key := "login_attempts:" + username
-	now := time.Now().Unix()
+	now := timeNow().Unix()
 
 	attempts, err := r.recordAttempt(ctx, key, now)
 	if err != nil {
